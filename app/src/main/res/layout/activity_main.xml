@@ -35,15 +35,13 @@
             <ImageView
                 android:layout_width="16dp"
                 android:layout_height="16dp"
-                android:src="@android:drawable/presence_online"
-                app:tint="@android:color/white" />
+                android:background="@drawable/dot_status_white" />
 
             <ImageView
-                android:layout_width="16dp"
-                android:layout_height="16dp"
+                android:layout_width="14dp"
+                android:layout_height="8dp"
                 android:layout_marginStart="6dp"
-                android:src="@android:drawable/ic_lock_idle_low_battery"
-                app:tint="@android:color/white" />
+                android:background="@drawable/battery_status_white" />
         </LinearLayout>
 
         <LinearLayout
@@ -75,8 +73,7 @@
                     android:background="@android:color/transparent"
                     android:contentDescription="@string/action_import"
                     android:padding="8dp"
-                    android:src="@android:drawable/stat_sys_upload"
-                    app:tint="@android:color/white" />
+                    app:srcCompat="@drawable/ic_import_white_20" />
 
                 <ImageButton
                     android:id="@+id/btnWork"
@@ -85,8 +82,7 @@
                     android:background="@android:color/transparent"
                     android:contentDescription="@string/action_work"
                     android:padding="8dp"
-                    android:src="@android:drawable/ic_menu_agenda"
-                    app:tint="#06D6A0" />
+                    app:srcCompat="@drawable/ic_work_green_20" />
 
                 <ImageButton
                     android:id="@+id/btnGoogleAuth"
@@ -95,8 +91,7 @@
                     android:background="@android:color/transparent"
                     android:contentDescription="Вход Google"
                     android:padding="8dp"
-                    android:src="@android:drawable/ic_menu_myplaces"
-                    app:tint="@android:color/white" />
+                    app:srcCompat="@drawable/ic_user_white_20" />
             </LinearLayout>
 
             <LinearLayout
@@ -260,7 +255,7 @@
                 android:layout_margin="14dp"
                 android:contentDescription="@string/action_add"
                 app:backgroundTint="@color/primary"
-                app:srcCompat="@android:drawable/ic_input_add"
+                app:srcCompat="@drawable/ic_plus_white_24"
                 app:tint="@android:color/white" />
         </FrameLayout>
     </LinearLayout>
