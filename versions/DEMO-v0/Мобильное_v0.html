@@ -1,0 +1,1385 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>📱 Mobile Contacts | Профессиональный менеджер</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+        
+        :root {
+            --primary: #4361ee;
+            --primary-dark: #3a56d4;
+            --secondary: #7209b7;
+            --success: #06d6a0;
+            --danger: #ef476f;
+            --warning: #ffd166;
+            --dark: #2b2d42;
+            --light: #f8f9fa;
+            --gray: #6c757d;
+            --gradient: linear-gradient(135deg, var(--primary), var(--secondary));
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Inter', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            background: var(--gradient);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 0;
+            margin: 0;
+        }
+
+        /* Мобильный контейнер */
+        .mobile-container {
+            width: 100%;
+            max-width: 380px;
+            height: 700px;
+            background: var(--light);
+            border-radius: 40px;
+            overflow: hidden;
+            box-shadow: 0 30px 50px rgba(0, 0, 0, 0.3);
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            animation: phoneAppear 0.5s ease-out;
+        }
+
+        @keyframes phoneAppear {
+            from {
+                transform: scale(0.9) translateY(50px);
+                opacity: 0;
+            }
+            to {
+                transform: scale(1) translateY(0);
+                opacity: 1;
+            }
+        }
+
+        /* Динамический остров (как в iPhone) */
+        .dynamic-island {
+            background: var(--dark);
+            height: 35px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 20px;
+            color: white;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .time {
+            background: rgba(255,255,255,0.2);
+            padding: 5px 15px;
+            border-radius: 20px;
+        }
+
+        /* Header */
+        .app-header {
+            background: var(--gradient);
+            padding: 15px 20px;
+            color: white;
+        }
+
+        .header-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .header-top h1 {
+            font-size: 24px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 15px;
+        }
+
+        .header-actions i {
+            font-size: 20px;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .header-actions i:active {
+            transform: scale(0.9);
+        }
+
+        .stats-container {
+            display: flex;
+            gap: 15px;
+            background: rgba(255,255,255,0.2);
+            padding: 10px 15px;
+            border-radius: 25px;
+            backdrop-filter: blur(10px);
+        }
+
+        .stat-badge {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 14px;
+        }
+
+        /* Поиск */
+        .search-section {
+            padding: 15px 20px;
+            background: white;
+        }
+
+        .search-box {
+            background: #f1f5f9;
+            border-radius: 30px;
+            padding: 12px 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            border: 2px solid transparent;
+            transition: all 0.3s;
+        }
+
+        .search-box:focus-within {
+            border-color: var(--primary);
+            background: white;
+            box-shadow: 0 5px 15px rgba(67, 97, 238, 0.2);
+        }
+
+        .search-box input {
+            flex: 1;
+            border: none;
+            background: transparent;
+            outline: none;
+            font-size: 16px;
+        }
+
+        .search-box i {
+            color: var(--gray);
+        }
+
+        /* Табы групп */
+        .groups-tabs {
+            padding: 10px 20px;
+            background: white;
+            border-bottom: 1px solid #e9ecef;
+            overflow-x: auto;
+            white-space: nowrap;
+            scrollbar-width: none;
+            -ms-overflow-style: none;
+        }
+
+        .groups-tabs::-webkit-scrollbar {
+            display: none;
+        }
+
+        .tabs-container {
+            display: flex;
+            gap: 10px;
+        }
+
+        .group-tab {
+            padding: 8px 20px;
+            border-radius: 25px;
+            background: #f1f5f9;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .group-tab.active {
+            background: var(--gradient);
+            color: white;
+            box-shadow: 0 5px 15px rgba(67, 97, 238, 0.3);
+        }
+
+        .group-tab i {
+            font-size: 14px;
+        }
+
+        .group-count {
+            background: rgba(0,0,0,0.1);
+            padding: 2px 8px;
+            border-radius: 20px;
+            font-size: 12px;
+        }
+
+        .group-tab.active .group-count {
+            background: rgba(255,255,255,0.2);
+        }
+
+        /* Основной контент */
+        .content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            background: #f8fafc;
+        }
+
+        /* Секции контактов */
+        .contacts-section {
+            margin-bottom: 25px;
+        }
+
+        .section-title {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .section-title h3 {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--dark);
+        }
+
+        .section-title span {
+            color: var(--gray);
+            font-size: 14px;
+        }
+
+        /* Карточка контакта */
+        .contact-card {
+            background: white;
+            border-radius: 20px;
+            padding: 15px;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            animation: cardAppear 0.3s ease-out;
+            position: relative;
+            border: 1px solid rgba(0,0,0,0.05);
+            transition: all 0.2s;
+        }
+
+        .contact-card:active {
+            transform: scale(0.98);
+            background: #f8fafc;
+        }
+
+        @keyframes cardAppear {
+            from {
+                opacity: 0;
+                transform: translateX(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        .contact-avatar {
+            width: 55px;
+            height: 55px;
+            background: var(--gradient);
+            border-radius: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 20px;
+            font-weight: 700;
+            position: relative;
+        }
+
+        .work-badge {
+            position: absolute;
+            bottom: -5px;
+            right: -5px;
+            width: 22px;
+            height: 22px;
+            background: var(--success);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 12px;
+            border: 2px solid white;
+        }
+
+        .contact-info {
+            flex: 1;
+        }
+
+        .contact-name {
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--dark);
+            margin-bottom: 4px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .contact-name i {
+            font-size: 14px;
+            color: var(--success);
+        }
+
+        .contact-phone {
+            font-size: 14px;
+            color: var(--gray);
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .contact-tags {
+            display: flex;
+            gap: 5px;
+            margin-top: 5px;
+        }
+
+        .tag {
+            padding: 3px 10px;
+            border-radius: 20px;
+            font-size: 10px;
+            font-weight: 600;
+        }
+
+        .tag.work-tag {
+            background: #e7f5ff;
+            color: var(--primary);
+        }
+
+        .tag.imported {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .contact-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .contact-actions i {
+            width: 35px;
+            height: 35px;
+            background: #f1f5f9;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--gray);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .contact-actions i:active {
+            background: var(--gradient);
+            color: white;
+        }
+
+        /* Кнопка добавления */
+        .fab-add {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            width: 60px;
+            height: 60px;
+            background: var(--gradient);
+            border-radius: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 24px;
+            box-shadow: 0 10px 25px rgba(67, 97, 238, 0.4);
+            cursor: pointer;
+            transition: all 0.3s;
+            z-index: 100;
+        }
+
+        .fab-add:active {
+            transform: scale(0.9);
+        }
+
+        /* Модальное окно */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            backdrop-filter: blur(5px);
+            z-index: 1000;
+            align-items: flex-end;
+        }
+
+        .modal.active {
+            display: flex;
+            animation: fadeIn 0.3s;
+        }
+
+        .modal-content {
+            background: white;
+            width: 100%;
+            border-radius: 30px 30px 0 0;
+            padding: 20px;
+            max-height: 80vh;
+            overflow-y: auto;
+            animation: slideUp 0.3s ease-out;
+        }
+
+        @keyframes slideUp {
+            from {
+                transform: translateY(100%);
+            }
+            to {
+                transform: translateY(0);
+            }
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .modal-header h3 {
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--dark);
+        }
+
+        .close-btn {
+            width: 40px;
+            height: 40px;
+            background: #f1f5f9;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+
+        /* Форма */
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--dark);
+        }
+
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid #e9ecef;
+            border-radius: 15px;
+            font-size: 16px;
+            transition: all 0.3s;
+            background: white;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(67, 97, 238, 0.1);
+        }
+
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .checkbox-group input[type="checkbox"] {
+            width: auto;
+        }
+
+        /* Кнопки */
+        .btn {
+            width: 100%;
+            padding: 16px;
+            border: none;
+            border-radius: 15px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .btn-primary {
+            background: var(--gradient);
+            color: white;
+        }
+
+        .btn-primary:active {
+            opacity: 0.8;
+        }
+
+        .btn-outline {
+            background: transparent;
+            border: 2px solid var(--primary);
+            color: var(--primary);
+        }
+
+        .btn-outline:active {
+            background: var(--primary);
+            color: white;
+        }
+
+        /* Импорт контактов */
+        .import-options {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .import-card {
+            background: #f8fafc;
+            padding: 20px;
+            border-radius: 15px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            border: 2px solid transparent;
+        }
+
+        .import-card:hover {
+            border-color: var(--primary);
+            background: white;
+        }
+
+        .import-card i {
+            font-size: 30px;
+            color: var(--primary);
+            margin-bottom: 10px;
+        }
+
+        .import-card span {
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        /* Статус работы */
+        .work-status {
+            position: fixed;
+            bottom: 100px;
+            left: 20px;
+            right: 20px;
+            background: white;
+            border-radius: 25px;
+            padding: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            display: none;
+            z-index: 90;
+        }
+
+        .work-status.active {
+            display: block;
+            animation: slideUp 0.3s;
+        }
+
+        .work-status-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .work-status-title {
+            font-weight: 700;
+            color: var(--dark);
+        }
+
+        .work-progress {
+            height: 8px;
+            background: #e9ecef;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 10px;
+        }
+
+        .work-progress-bar {
+            height: 100%;
+            background: var(--success);
+            width: 0%;
+            transition: width 0.3s;
+        }
+
+        /* Уведомления */
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            right: 20px;
+            background: var(--dark);
+            color: white;
+            padding: 15px 20px;
+            border-radius: 25px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            z-index: 2000;
+            animation: toastSlide 0.3s;
+        }
+
+        @keyframes toastSlide {
+            from {
+                transform: translateY(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        .toast.success {
+            background: var(--success);
+        }
+
+        .toast.error {
+            background: var(--danger);
+        }
+
+        /* Пустое состояние */
+        .empty-state {
+            text-align: center;
+            padding: 50px 20px;
+            color: var(--gray);
+        }
+
+        .empty-state i {
+            font-size: 50px;
+            margin-bottom: 15px;
+            opacity: 0.5;
+        }
+
+        .empty-state h4 {
+            font-size: 18px;
+            margin-bottom: 10px;
+            color: var(--dark);
+        }
+    </style>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <div class="mobile-container">
+        <!-- Динамический остров -->
+        <div class="dynamic-island">
+            <span>9:41</span>
+            <span class="time"><i class="fas fa-signal"></i> <i class="fas fa-wifi"></i> <i class="fas fa-battery-full"></i></span>
+        </div>
+
+        <!-- Header -->
+        <div class="app-header">
+            <div class="header-top">
+                <h1>
+                    <i class="fas fa-address-book"></i>
+                    Контакты
+                </h1>
+                <div class="header-actions">
+                    <i class="fas fa-cloud-upload-alt" onclick="openImportModal()"></i>
+                    <i class="fas fa-briefcase" onclick="showWorkStatus()" style="color: var(--success);"></i>
+                </div>
+            </div>
+            <div class="stats-container">
+                <div class="stat-badge">
+                    <i class="fas fa-users"></i>
+                    <span id="totalContacts">0</span>
+                </div>
+                <div class="stat-badge">
+                    <i class="fas fa-briefcase"></i>
+                    <span id="workContacts">0</span>
+                </div>
+                <div class="stat-badge">
+                    <i class="fas fa-download"></i>
+                    <span id="importedContacts">0</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Поиск -->
+        <div class="search-section">
+            <div class="search-box">
+                <i class="fas fa-search"></i>
+                <input type="text" id="searchInput" placeholder="Поиск по имени или телефону...">
+            </div>
+        </div>
+
+        <!-- Табы групп -->
+        <div class="groups-tabs">
+            <div class="tabs-container" id="tabsContainer">
+                <div class="group-tab active" onclick="filterByGroup('all')">
+                    <i class="fas fa-inbox"></i>
+                    Все
+                    <span class="group-count" id="allCount">0</span>
+                </div>
+                <div class="group-tab" onclick="filterByGroup('family')">
+                    <i class="fas fa-heart"></i>
+                    Семья
+                    <span class="group-count" id="familyCount">0</span>
+                </div>
+                <div class="group-tab" onclick="filterByGroup('friends')">
+                    <i class="fas fa-beer"></i>
+                    Друзья
+                    <span class="group-count" id="friendsCount">0</span>
+                </div>
+                <div class="group-tab" onclick="filterByGroup('work')">
+                    <i class="fas fa-briefcase"></i>
+                    Работа
+                    <span class="group-count" id="workCount">0</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Основной контент -->
+        <div class="content" id="content">
+            <!-- Контакты будут загружаться сюда -->
+        </div>
+
+        <!-- FAB Кнопка добавления -->
+        <div class="fab-add" onclick="openContactModal()">
+            <i class="fas fa-plus"></i>
+        </div>
+
+        <!-- Статус работы -->
+        <div class="work-status" id="workStatus">
+            <div class="work-status-header">
+                <span class="work-status-title"><i class="fas fa-briefcase"></i> Рабочие задачи</span>
+                <i class="fas fa-times" onclick="hideWorkStatus()"></i>
+            </div>
+            <div id="workTasksList">
+                <!-- Список задач -->
+            </div>
+            <div class="work-progress">
+                <div class="work-progress-bar" id="workProgress" style="width: 0%"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно контакта -->
+    <div class="modal" id="contactModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modalTitle">Новый контакт</h3>
+                <div class="close-btn" onclick="closeModal('contactModal')">
+                    <i class="fas fa-times"></i>
+                </div>
+            </div>
+            <form id="contactForm" onsubmit="saveContact(event)">
+                <input type="hidden" id="contactId">
+                
+                <div class="form-group">
+                    <label>Имя *</label>
+                    <input type="text" id="firstName" required placeholder="Введите имя">
+                </div>
+
+                <div class="form-group">
+                    <label>Фамилия</label>
+                    <input type="text" id="lastName" placeholder="Введите фамилию">
+                </div>
+
+                <div class="form-group">
+                    <label>Телефон *</label>
+                    <input type="tel" id="phone" required placeholder="+7 (999) 999-99-99">
+                </div>
+
+                <div class="form-group">
+                    <label>Email</label>
+                    <input type="email" id="email" placeholder="example@mail.com">
+                </div>
+
+                <div class="form-group">
+                    <label>Группа</label>
+                    <select id="group">
+                        <option value="family">👨‍👩‍👧‍👦 Семья</option>
+                        <option value="friends">🍻 Друзья</option>
+                        <option value="work">💼 Работа</option>
+                        <option value="other">📌 Другое</option>
+                    </select>
+                </div>
+
+                <div class="form-group checkbox-group">
+                    <input type="checkbox" id="isWorkContact">
+                    <label for="isWorkContact">Добавить в рабочие задачи</label>
+                </div>
+
+                <div class="form-group" id="workTaskField" style="display: none;">
+                    <label>Рабочая задача</label>
+                    <input type="text" id="workTask" placeholder="Что нужно сделать?">
+                </div>
+
+                <div class="form-group">
+                    <label>Адрес</label>
+                    <textarea id="address" rows="2" placeholder="Введите адрес"></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label>День рождения</label>
+                    <input type="date" id="birthday">
+                </div>
+
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-save"></i> Сохранить
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Модальное окно импорта -->
+    <div class="modal" id="importModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Импорт контактов</h3>
+                <div class="close-btn" onclick="closeModal('importModal')">
+                    <i class="fas fa-times"></i>
+                </div>
+            </div>
+            
+            <div class="import-options">
+                <div class="import-card" onclick="importFromVCF()">
+                    <i class="fas fa-address-card"></i>
+                    <span>VCF файл</span>
+                </div>
+                <div class="import-card" onclick="importFromCSV()">
+                    <i class="fas fa-file-csv"></i>
+                    <span>CSV файл</span>
+                </div>
+                <div class="import-card" onclick="importFromGoogle()">
+                    <i class="fab fa-google"></i>
+                    <span>Google</span>
+                </div>
+                <div class="import-card" onclick="importFromiPhone()">
+                    <i class="fab fa-apple"></i>
+                    <span>iPhone</span>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Или вставьте контакты в формате: Имя, Телефон</label>
+                <textarea id="bulkImport" rows="5" placeholder="Анна, +79991234567&#10;Петр, +79997654321&#10;Мария, +79995554433"></textarea>
+            </div>
+
+            <button class="btn btn-primary" onclick="processBulkImport()">
+                <i class="fas fa-upload"></i> Импортировать
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // Класс для управления контактами
+        class MobileContactManager {
+            constructor() {
+                this.contacts = [];
+                this.currentFilter = 'all';
+                this.workTasks = [];
+                this.importedCount = 0;
+                this.loadContacts();
+                this.setupEventListeners();
+            }
+
+            loadContacts() {
+                const saved = localStorage.getItem('mobileContacts');
+                if (saved) {
+                    const data = JSON.parse(saved);
+                    this.contacts = data.contacts || [];
+                    this.workTasks = data.workTasks || [];
+                    this.importedCount = data.importedCount || 0;
+                } else {
+                    // Пример данных
+                    this.contacts = [
+                        {
+                            id: Date.now() - 1000000,
+                            firstName: 'Анна',
+                            lastName: 'Иванова',
+                            phone: '+7 (999) 123-45-67',
+                            email: 'anna@company.com',
+                            group: 'work',
+                            isWorkContact: true,
+                            workTask: 'Подготовить отчет',
+                            address: 'Москва',
+                            imported: false
+                        },
+                        {
+                            id: Date.now() - 2000000,
+                            firstName: 'Петр',
+                            lastName: 'Сидоров',
+                            phone: '+7 (999) 765-43-21',
+                            email: 'petr@friends.com',
+                            group: 'friends',
+                            isWorkContact: false,
+                            address: 'СПб',
+                            imported: true
+                        },
+                        {
+                            id: Date.now() - 3000000,
+                            firstName: 'Мария',
+                            lastName: 'Петрова',
+                            phone: '+7 (999) 555-55-55',
+                            group: 'family',
+                            isWorkContact: false,
+                            imported: false
+                        }
+                    ];
+                    
+                    // Создаем рабочие задачи
+                    this.workTasks = this.contacts.filter(c => c.isWorkContact).map(c => ({
+                        contactId: c.id,
+                        task: c.workTask || 'Задача',
+                        completed: false
+                    }));
+                }
+                this.updateStats();
+                this.render();
+            }
+
+            saveContacts() {
+                localStorage.setItem('mobileContacts', JSON.stringify({
+                    contacts: this.contacts,
+                    workTasks: this.workTasks,
+                    importedCount: this.importedCount
+                }));
+                this.updateStats();
+                this.render();
+            }
+
+            addContact(contact) {
+                contact.id = Date.now();
+                contact.imported = false;
+                this.contacts.push(contact);
+                
+                if (contact.isWorkContact) {
+                    this.workTasks.push({
+                        contactId: contact.id,
+                        task: contact.workTask || 'Новая задача',
+                        completed: false
+                    });
+                }
+                
+                this.saveContacts();
+                this.showToast('Контакт добавлен!', 'success');
+            }
+
+            updateContact(id, updatedContact) {
+                const index = this.contacts.findIndex(c => c.id === id);
+                if (index !== -1) {
+                    const oldContact = this.contacts[index];
+                    updatedContact.id = id;
+                    updatedContact.imported = oldContact.imported;
+                    this.contacts[index] = updatedContact;
+
+                    // Обновляем рабочие задачи
+                    if (updatedContact.isWorkContact) {
+                        const taskIndex = this.workTasks.findIndex(t => t.contactId === id);
+                        if (taskIndex !== -1) {
+                            this.workTasks[taskIndex].task = updatedContact.workTask || 'Задача';
+                        } else {
+                            this.workTasks.push({
+                                contactId: id,
+                                task: updatedContact.workTask || 'Задача',
+                                completed: false
+                            });
+                        }
+                    } else {
+                        this.workTasks = this.workTasks.filter(t => t.contactId !== id);
+                    }
+
+                    this.saveContacts();
+                    this.showToast('Контакт обновлен!', 'success');
+                }
+            }
+
+            deleteContact(id) {
+                if (confirm('Удалить контакт?')) {
+                    this.contacts = this.contacts.filter(c => c.id !== id);
+                    this.workTasks = this.workTasks.filter(t => t.contactId !== id);
+                    this.saveContacts();
+                    this.showToast('Контакт удален', 'error');
+                }
+            }
+
+            addToWork(id) {
+                const contact = this.contacts.find(c => c.id === id);
+                if (contact && !contact.isWorkContact) {
+                    contact.isWorkContact = true;
+                    contact.workTask = 'Новая задача';
+                    this.workTasks.push({
+                        contactId: id,
+                        task: 'Новая задача',
+                        completed: false
+                    });
+                    this.saveContacts();
+                    this.showToast(`${contact.firstName} добавлен(а) в работу!`, 'success');
+                }
+            }
+
+            importContacts(contacts) {
+                let imported = 0;
+                contacts.forEach(contactData => {
+                    if (contactData.name && contactData.phone) {
+                        const newContact = {
+                            id: Date.now() + imported,
+                            firstName: contactData.name.split(' ')[0] || contactData.name,
+                            lastName: contactData.name.split(' ')[1] || '',
+                            phone: contactData.phone,
+                            email: contactData.email || '',
+                            group: 'other',
+                            isWorkContact: false,
+                            address: '',
+                            imported: true
+                        };
+                        this.contacts.push(newContact);
+                        imported++;
+                    }
+                });
+                
+                this.importedCount += imported;
+                this.saveContacts();
+                this.showToast(`Импортировано ${imported} контактов!`, 'success');
+            }
+
+            getFilteredContacts() {
+                let filtered = this.contacts;
+                
+                if (this.currentFilter !== 'all') {
+                    filtered = filtered.filter(c => c.group === this.currentFilter);
+                }
+
+                const searchTerm = document.getElementById('searchInput')?.value.toLowerCase() || '';
+                if (searchTerm) {
+                    filtered = filtered.filter(c => 
+                        c.firstName.toLowerCase().includes(searchTerm) ||
+                        (c.lastName && c.lastName.toLowerCase().includes(searchTerm)) ||
+                        c.phone.includes(searchTerm)
+                    );
+                }
+
+                return filtered;
+            }
+
+            updateStats() {
+                document.getElementById('totalContacts').textContent = this.contacts.length;
+                document.getElementById('workContacts').textContent = this.contacts.filter(c => c.isWorkContact).length;
+                document.getElementById('importedContacts').textContent = this.importedCount;
+                
+                document.getElementById('allCount').textContent = this.contacts.length;
+                document.getElementById('familyCount').textContent = this.contacts.filter(c => c.group === 'family').length;
+                document.getElementById('friendsCount').textContent = this.contacts.filter(c => c.group === 'friends').length;
+                document.getElementById('workCount').textContent = this.contacts.filter(c => c.group === 'work').length;
+            }
+
+            render() {
+                const container = document.getElementById('content');
+                const filtered = this.getFilteredContacts();
+
+                if (filtered.length === 0) {
+                    container.innerHTML = `
+                        <div class="empty-state">
+                            <i class="fas fa-address-book"></i>
+                            <h4>Нет контактов</h4>
+                            <p>Добавьте новый контакт или импортируйте существующие</p>
+                        </div>
+                    `;
+                    return;
+                }
+
+                // Группируем по первой букве
+                const grouped = {};
+                filtered.sort((a, b) => a.firstName.localeCompare(b.firstName)).forEach(contact => {
+                    const letter = contact.firstName[0].toUpperCase();
+                    if (!grouped[letter]) grouped[letter] = [];
+                    grouped[letter].push(contact);
+                });
+
+                container.innerHTML = Object.keys(grouped).sort().map(letter => `
+                    <div class="contacts-section">
+                        <div class="section-title">
+                            <h3>${letter}</h3>
+                            <span>${grouped[letter].length}</span>
+                        </div>
+                        ${grouped[letter].map(contact => this.renderContactCard(contact)).join('')}
+                    </div>
+                `).join('');
+
+                // Обновляем рабочие задачи
+                this.renderWorkTasks();
+            }
+
+            renderContactCard(contact) {
+                const initials = (contact.firstName[0] + (contact.lastName ? contact.lastName[0] : '')).toUpperCase();
+                
+                return `
+                    <div class="contact-card" data-id="${contact.id}">
+                        <div class="contact-avatar">
+                            ${initials}
+                            ${contact.isWorkContact ? '<div class="work-badge"><i class="fas fa-briefcase"></i></div>' : ''}
+                        </div>
+                        <div class="contact-info">
+                            <div class="contact-name">
+                                ${contact.firstName} ${contact.lastName || ''}
+                                ${contact.isWorkContact ? '<i class="fas fa-briefcase" style="color: var(--success);"></i>' : ''}
+                            </div>
+                            <div class="contact-phone">
+                                <i class="fas fa-phone"></i>
+                                ${contact.phone}
+                            </div>
+                            <div class="contact-tags">
+                                ${contact.group !== 'other' ? `<span class="tag">${contact.group}</span>` : ''}
+                                ${contact.imported ? '<span class="tag imported"><i class="fas fa-download"></i> Импорт</span>' : ''}
+                            </div>
+                        </div>
+                        <div class="contact-actions">
+                            <i class="fas fa-briefcase" onclick="event.stopPropagation(); addToWork(${contact.id})" style="${contact.isWorkContact ? 'color: var(--success);' : ''}"></i>
+                            <i class="fas fa-edit" onclick="event.stopPropagation(); editContact(${contact.id})"></i>
+                            <i class="fas fa-trash" onclick="event.stopPropagation(); deleteContact(${contact.id})"></i>
+                        </div>
+                    </div>
+                `;
+            }
+
+            renderWorkTasks() {
+                const tasksContainer = document.getElementById('workTasksList');
+                if (!tasksContainer) return;
+
+                const activeTasks = this.workTasks.filter(t => !t.completed);
+                const completedTasks = this.workTasks.length - activeTasks.length;
+                const progress = this.workTasks.length > 0 ? (completedTasks / this.workTasks.length) * 100 : 0;
+
+                document.getElementById('workProgress').style.width = `${progress}%`;
+
+                if (activeTasks.length === 0) {
+                    tasksContainer.innerHTML = '<p style="text-align: center; color: var(--gray);">Нет активных задач</p>';
+                    return;
+                }
+
+                tasksContainer.innerHTML = activeTasks.map(task => {
+                    const contact = this.contacts.find(c => c.id === task.contactId);
+                    return `
+                        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px; padding: 10px; background: #f1f5f9; border-radius: 12px;">
+                            <input type="checkbox" onchange="completeWorkTask(${task.contactId})">
+                            <div>
+                                <div style="font-weight: 600;">${contact ? contact.firstName : 'Контакт'}</div>
+                                <div style="font-size: 12px; color: var(--gray);">${task.task}</div>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            }
+
+            showToast(message, type) {
+                const toast = document.createElement('div');
+                toast.className = `toast ${type}`;
+                toast.innerHTML = `
+                    <i class="fas ${type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'}"></i>
+                    <span>${message}</span>
+                `;
+                document.body.appendChild(toast);
+                setTimeout(() => toast.remove(), 3000);
+            }
+
+            setupEventListeners() {
+                document.getElementById('searchInput').addEventListener('input', () => this.render());
+                
+                // Показываем поле задачи при чекбоксе
+                document.getElementById('isWorkContact')?.addEventListener('change', (e) => {
+                    document.getElementById('workTaskField').style.display = e.target.checked ? 'block' : 'none';
+                });
+            }
+        }
+
+        // Инициализация
+        const app = new MobileContactManager();
+
+        // Глобальные функции
+        function openContactModal(id = null) {
+            const modal = document.getElementById('contactModal');
+            const form = document.getElementById('contactForm');
+            
+            if (id) {
+                const contact = app.contacts.find(c => c.id === id);
+                if (contact) {
+                    document.getElementById('modalTitle').textContent = 'Редактировать';
+                    document.getElementById('contactId').value = contact.id;
+                    document.getElementById('firstName').value = contact.firstName;
+                    document.getElementById('lastName').value = contact.lastName || '';
+                    document.getElementById('phone').value = contact.phone;
+                    document.getElementById('email').value = contact.email || '';
+                    document.getElementById('group').value = contact.group || 'other';
+                    document.getElementById('isWorkContact').checked = contact.isWorkContact || false;
+                    document.getElementById('workTask').value = contact.workTask || '';
+                    document.getElementById('address').value = contact.address || '';
+                    document.getElementById('birthday').value = contact.birthday || '';
+                    
+                    document.getElementById('workTaskField').style.display = contact.isWorkContact ? 'block' : 'none';
+                }
+            } else {
+                document.getElementById('modalTitle').textContent = 'Новый контакт';
+                form.reset();
+                document.getElementById('contactId').value = '';
+                document.getElementById('workTaskField').style.display = 'none';
+            }
+            
+            modal.classList.add('active');
+        }
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).classList.remove('active');
+        }
+
+        function saveContact(event) {
+            event.preventDefault();
+            
+            const contactData = {
+                firstName: document.getElementById('firstName').value,
+                lastName: document.getElementById('lastName').value,
+                phone: document.getElementById('phone').value,
+                email: document.getElementById('email').value,
+                group: document.getElementById('group').value,
+                isWorkContact: document.getElementById('isWorkContact').checked,
+                workTask: document.getElementById('workTask').value,
+                address: document.getElementById('address').value,
+                birthday: document.getElementById('birthday').value
+            };
+
+            const contactId = document.getElementById('contactId').value;
+            
+            if (contactId) {
+                app.updateContact(parseInt(contactId), contactData);
+            } else {
+                app.addContact(contactData);
+            }
+            
+            closeModal('contactModal');
+        }
+
+        function editContact(id) {
+            openContactModal(id);
+        }
+
+        function deleteContact(id) {
+            app.deleteContact(id);
+        }
+
+        function addToWork(id) {
+            app.addToWork(id);
+        }
+
+        function filterByGroup(group) {
+            app.currentFilter = group;
+            
+            document.querySelectorAll('.group-tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            event.currentTarget.classList.add('active');
+            
+            app.render();
+        }
+
+        function completeWorkTask(contactId) {
+            const task = app.workTasks.find(t => t.contactId === contactId);
+            if (task) {
+                task.completed = true;
+                app.saveContacts();
+                app.showToast('Задача выполнена!', 'success');
+                app.renderWorkTasks();
+            }
+        }
+
+        function showWorkStatus() {
+            document.getElementById('workStatus').classList.add('active');
+        }
+
+        function hideWorkStatus() {
+            document.getElementById('workStatus').classList.remove('active');
+        }
+
+        // Импорт контактов
+        function openImportModal() {
+            document.getElementById('importModal').classList.add('active');
+        }
+
+        function processBulkImport() {
+            const text = document.getElementById('bulkImport').value;
+            const lines = text.split('\n');
+            
+            const contacts = lines.map(line => {
+                const parts = line.split(',');
+                if (parts.length >= 2) {
+                    return {
+                        name: parts[0].trim(),
+                        phone: parts[1].trim()
+                    };
+                }
+                return null;
+            }).filter(c => c !== null);
+
+            app.importContacts(contacts);
+            closeModal('importModal');
+        }
+
+        function importFromVCF() {
+            app.showToast('Выберите VCF файл', 'success');
+            // Здесь можно добавить реальную загрузку файла
+        }
+
+        function importFromCSV() {
+            app.showToast('Выберите CSV файл', 'success');
+        }
+
+        function importFromGoogle() {
+            app.importContacts([
+                { name: 'Импорт Google 1', phone: '+79991112233' },
+                { name: 'Импорт Google 2', phone: '+79991112244' }
+            ]);
+            closeModal('importModal');
+        }
+
+        function importFromiPhone() {
+            app.importContacts([
+                { name: 'Импорт iPhone 1', phone: '+79991115566' },
+                { name: 'Импорт iPhone 2', phone: '+79991115577' }
+            ]);
+            closeModal('importModal');
+        }
+
+        // Закрытие модалок по клику вне
+        window.onclick = function(event) {
+            if (event.target.classList.contains('modal')) {
+                event.target.classList.remove('active');
+            }
+        }
+    </script>
+</body>
+</html>

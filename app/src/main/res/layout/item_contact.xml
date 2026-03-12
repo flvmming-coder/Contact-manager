@@ -1,75 +1,93 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
-<androidx.cardview.widget.CardView xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_margin="6dp"
-    app:cardCornerRadius="14dp"
-    app:cardElevation="4dp">
+    android:layout_marginBottom="8dp"
+    android:background="@drawable/bg_contact_card"
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
+    android:padding="12dp">
 
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:padding="12dp">
+    <FrameLayout
+        android:layout_width="50dp"
+        android:layout_height="50dp">
 
         <TextView
             android:id="@+id/avatar"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:background="@color/primary"
+            android:layout_width="50dp"
+            android:layout_height="50dp"
+            android:background="@drawable/bg_avatar_gradient"
             android:gravity="center"
-            android:text="АБ"
+            android:text="AB"
             android:textColor="@android:color/white"
             android:textStyle="bold" />
 
-        <LinearLayout
-            android:layout_width="0dp"
+        <TextView
+            android:id="@+id/workBadge"
+            android:layout_width="18dp"
+            android:layout_height="18dp"
+            android:layout_gravity="bottom|end"
+            android:background="@drawable/bg_work_badge"
+            android:gravity="center"
+            android:text="W"
+            android:textColor="@android:color/white"
+            android:textSize="9sp"
+            android:textStyle="bold"
+            android:visibility="gone" />
+    </FrameLayout>
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="12dp"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/name"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginStart="12dp"
-            android:layout_weight="1"
-            android:orientation="vertical">
+            android:text="Имя Фамилия"
+            android:textColor="#2B2D42"
+            android:textSize="16sp"
+            android:textStyle="bold" />
 
-            <TextView
-                android:id="@+id/name"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Иван Иванов"
-                android:textColor="@color/text_primary"
-                android:textSize="16sp"
-                android:textStyle="bold" />
+        <TextView
+            android:id="@+id/phone"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:text="+7 999 000 00 00"
+            android:textColor="#6C757D"
+            android:textSize="13sp" />
 
-            <TextView
-                android:id="@+id/phone"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="+79991112233"
-                android:textColor="@color/text_secondary" />
-
-            <TextView
-                android:id="@+id/group"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="работа"
-                android:textColor="@color/text_secondary"
-                android:textSize="12sp" />
-        </LinearLayout>
-
-        <ImageButton
-            android:id="@+id/btnEdit"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:background="@android:color/transparent"
-            android:contentDescription="Редактировать"
-            android:src="@android:drawable/ic_menu_edit" />
-
-        <ImageButton
-            android:id="@+id/btnDelete"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:background="@android:color/transparent"
-            android:contentDescription="Удалить"
-            android:src="@android:drawable/ic_menu_delete" />
-
+        <TextView
+            android:id="@+id/group"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:text="other"
+            android:textColor="#6C757D"
+            android:textSize="12sp" />
     </LinearLayout>
-</androidx.cardview.widget.CardView>
+
+    <ImageButton
+        android:id="@+id/btnEdit"
+        android:layout_width="34dp"
+        android:layout_height="34dp"
+        android:background="@drawable/bg_search_box"
+        android:contentDescription="Редактировать"
+        android:src="@android:drawable/ic_menu_edit"
+        android:tint="#6C757D" />
+
+    <ImageButton
+        android:id="@+id/btnDelete"
+        android:layout_width="34dp"
+        android:layout_height="34dp"
+        android:layout_marginStart="6dp"
+        android:background="@drawable/bg_search_box"
+        android:contentDescription="Удалить"
+        android:src="@android:drawable/ic_menu_delete"
+        android:tint="#6C757D" />
+
+</LinearLayout>

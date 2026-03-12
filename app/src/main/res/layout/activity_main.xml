@@ -1,160 +1,268 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical">
-
-    <com.google.android.material.appbar.MaterialToolbar
-        android:id="@+id/toolbar"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:background="@color/primary"
-        android:theme="@style/ThemeOverlay.MaterialComponents.Dark.ActionBar"
-        app:title="Контакты"
-        app:titleTextColor="@android:color/white"
-        app:menu="@menu/main_menu" />
+    android:background="@drawable/bg_app_gradient">
 
     <LinearLayout
+        android:id="@+id/mobileContainer"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:padding="16dp"
-        android:weightSum="3">
+        android:layout_height="match_parent"
+        android:layout_margin="10dp"
+        android:background="@drawable/bg_phone_container"
+        android:clipToOutline="true"
+        android:orientation="vertical">
 
         <LinearLayout
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:orientation="vertical">
+            android:layout_width="match_parent"
+            android:layout_height="30dp"
+            android:background="#2B2D42"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingHorizontal="14dp">
+
             <TextView
-                android:id="@+id/totalCount"
-                android:layout_width="wrap_content"
+                android:id="@+id/currentTime"
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:text="0"
-                android:textColor="@color/text_primary"
-                android:textSize="18sp"
+                android:layout_weight="1"
+                android:text="09:41"
+                android:textColor="@android:color/white"
+                android:textSize="13sp"
                 android:textStyle="bold" />
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Всего" />
+
+            <ImageView
+                android:layout_width="16dp"
+                android:layout_height="16dp"
+                android:src="@android:drawable/presence_online"
+                app:tint="@android:color/white" />
+
+            <ImageView
+                android:layout_width="16dp"
+                android:layout_height="16dp"
+                android:layout_marginStart="6dp"
+                android:src="@android:drawable/ic_lock_idle_low_battery"
+                app:tint="@android:color/white" />
         </LinearLayout>
 
         <LinearLayout
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:orientation="vertical">
-            <TextView
-                android:id="@+id/workCount"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="0"
-                android:textColor="@color/text_primary"
-                android:textSize="18sp"
-                android:textStyle="bold" />
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Работа" />
-        </LinearLayout>
-
-        <LinearLayout
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:orientation="vertical">
-            <TextView
-                android:id="@+id/importedCount"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="0"
-                android:textColor="@color/text_primary"
-                android:textSize="18sp"
-                android:textStyle="bold" />
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Импорт" />
-        </LinearLayout>
-    </LinearLayout>
-
-    <com.google.android.material.textfield.TextInputLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginHorizontal="16dp"
-        android:layout_marginBottom="8dp"
-        app:boxBackgroundMode="outline">
-
-        <com.google.android.material.textfield.TextInputEditText
-            android:id="@+id/searchInput"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:hint="Поиск"
-            android:inputType="text" />
-    </com.google.android.material.textfield.TextInputLayout>
+            android:background="@drawable/bg_header_gradient"
+            android:orientation="vertical"
+            android:padding="14dp">
 
-    <com.google.android.material.chip.ChipGroup
-        android:id="@+id/groupChips"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginHorizontal="16dp"
-        android:layout_marginBottom="8dp"
-        app:singleSelection="true"
-        app:selectionRequired="true">
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
 
-        <com.google.android.material.chip.Chip
-            android:id="@+id/chip_all"
-            style="@style/Widget.MaterialComponents.Chip.Choice"
-            android:layout_width="wrap_content"
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Contact Manager"
+                    android:textColor="@android:color/white"
+                    android:textSize="22sp"
+                    android:textStyle="bold" />
+
+                <ImageButton
+                    android:id="@+id/btnImport"
+                    android:layout_width="38dp"
+                    android:layout_height="38dp"
+                    android:background="@android:color/transparent"
+                    android:contentDescription="@string/action_import"
+                    android:padding="8dp"
+                    android:src="@android:drawable/stat_sys_upload"
+                    app:tint="@android:color/white" />
+
+                <ImageButton
+                    android:id="@+id/btnWork"
+                    android:layout_width="38dp"
+                    android:layout_height="38dp"
+                    android:background="@android:color/transparent"
+                    android:contentDescription="@string/action_work"
+                    android:padding="8dp"
+                    android:src="@android:drawable/ic_menu_agenda"
+                    app:tint="#06D6A0" />
+
+                <ImageButton
+                    android:id="@+id/btnGoogleAuth"
+                    android:layout_width="38dp"
+                    android:layout_height="38dp"
+                    android:background="@android:color/transparent"
+                    android:contentDescription="Вход Google"
+                    android:padding="8dp"
+                    android:src="@android:drawable/ic_menu_myplaces"
+                    app:tint="@android:color/white" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:background="@drawable/bg_stats_pill"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingHorizontal="12dp"
+                android:paddingVertical="8dp">
+
+                <TextView
+                    android:id="@+id/totalCount"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Всего: 0"
+                    android:textColor="@android:color/white"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/workCount"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:gravity="center"
+                    android:text="Работа: 0"
+                    android:textColor="@android:color/white"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/importedCount"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:gravity="end"
+                    android:text="Импорт: 0"
+                    android:textColor="@android:color/white"
+                    android:textStyle="bold" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Все"
-            android:checked="true" />
+            android:orientation="vertical"
+            android:paddingHorizontal="14dp"
+            android:paddingTop="10dp">
 
-        <com.google.android.material.chip.Chip
-            android:id="@+id/chip_family"
-            style="@style/Widget.MaterialComponents.Chip.Choice"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Семья" />
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="44dp"
+                android:background="@drawable/bg_search_box"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingHorizontal="12dp">
 
-        <com.google.android.material.chip.Chip
-            android:id="@+id/chip_friends"
-            style="@style/Widget.MaterialComponents.Chip.Choice"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Друзья" />
+                <ImageView
+                    android:layout_width="18dp"
+                    android:layout_height="18dp"
+                    android:src="@android:drawable/ic_menu_search"
+                    app:tint="#6C757D" />
 
-        <com.google.android.material.chip.Chip
-            android:id="@+id/chip_work"
-            style="@style/Widget.MaterialComponents.Chip.Choice"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Работа" />
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/searchInput"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:background="@null"
+                    android:hint="Поиск"
+                    android:importantForAutofill="no"
+                    android:inputType="text" />
+            </LinearLayout>
 
-        <com.google.android.material.chip.Chip
-            android:id="@+id/chip_other"
-            style="@style/Widget.MaterialComponents.Chip.Choice"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Прочие" />
-    </com.google.android.material.chip.ChipGroup>
+            <HorizontalScrollView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:scrollbars="none">
 
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/recyclerView"
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"
-        android:padding="12dp" />
+                <com.google.android.material.chip.ChipGroup
+                    android:id="@+id/groupChips"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    app:singleSelection="true"
+                    app:selectionRequired="true">
 
-    <com.google.android.material.floatingactionbutton.FloatingActionButton
-        android:id="@+id/fabAdd"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="end"
-        android:layout_margin="16dp"
-        android:contentDescription="@string/action_add"
-        app:srcCompat="@android:drawable/ic_input_add" />
+                    <com.google.android.material.chip.Chip
+                        android:id="@+id/chip_all"
+                        style="@style/Widget.MaterialComponents.Chip.Choice"
+                        android:checked="true"
+                        android:text="Все (0)"
+                        android:textColor="@color/chip_text"
+                        app:chipBackgroundColor="@color/chip_bg"
+                        app:chipCornerRadius="18dp" />
 
-</LinearLayout>
+                    <com.google.android.material.chip.Chip
+                        android:id="@+id/chip_family"
+                        style="@style/Widget.MaterialComponents.Chip.Choice"
+                        android:text="Семья (0)"
+                        android:textColor="@color/chip_text"
+                        app:chipBackgroundColor="@color/chip_bg"
+                        app:chipCornerRadius="18dp" />
+
+                    <com.google.android.material.chip.Chip
+                        android:id="@+id/chip_friends"
+                        style="@style/Widget.MaterialComponents.Chip.Choice"
+                        android:text="Друзья (0)"
+                        android:textColor="@color/chip_text"
+                        app:chipBackgroundColor="@color/chip_bg"
+                        app:chipCornerRadius="18dp" />
+
+                    <com.google.android.material.chip.Chip
+                        android:id="@+id/chip_work"
+                        style="@style/Widget.MaterialComponents.Chip.Choice"
+                        android:text="Работа (0)"
+                        android:textColor="@color/chip_text"
+                        app:chipBackgroundColor="@color/chip_bg"
+                        app:chipCornerRadius="18dp" />
+
+                    <com.google.android.material.chip.Chip
+                        android:id="@+id/chip_other"
+                        style="@style/Widget.MaterialComponents.Chip.Choice"
+                        android:text="Прочие (0)"
+                        android:textColor="@color/chip_text"
+                        app:chipBackgroundColor="@color/chip_bg"
+                        app:chipCornerRadius="18dp" />
+                </com.google.android.material.chip.ChipGroup>
+            </HorizontalScrollView>
+        </LinearLayout>
+
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1">
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/recyclerView"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:clipToPadding="false"
+                android:padding="10dp" />
+
+            <TextView
+                android:id="@+id/emptyState"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:gravity="center"
+                android:padding="24dp"
+                android:text="Нет контактов"
+                android:textColor="#6C757D"
+                android:textSize="16sp"
+                android:visibility="gone" />
+
+            <com.google.android.material.floatingactionbutton.FloatingActionButton
+                android:id="@+id/fabAdd"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="end|bottom"
+                android:layout_margin="14dp"
+                android:contentDescription="@string/action_add"
+                app:backgroundTint="@color/primary"
+                app:srcCompat="@android:drawable/ic_input_add"
+                app:tint="@android:color/white" />
+        </FrameLayout>
+    </LinearLayout>
+
+</FrameLayout>

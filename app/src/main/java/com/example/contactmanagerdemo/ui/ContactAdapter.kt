@@ -11,7 +11,7 @@ import com.example.contactmanagerdemo.data.Contact
 
 class ContactAdapter(
     private val onEdit: (Contact) -> Unit,
-    private val onDelete: (Contact) -> Unit
+    private val onDelete: (Contact) -> Unit,
 ) : RecyclerView.Adapter<ContactAdapter.ContactViewHolder>() {
 
     private val items = mutableListOf<Contact>()
@@ -35,6 +35,7 @@ class ContactAdapter(
 
     inner class ContactViewHolder(view: View) : RecyclerView.ViewHolder(view) {
         private val avatar: TextView = view.findViewById(R.id.avatar)
+        private val workBadge: TextView = view.findViewById(R.id.workBadge)
         private val name: TextView = view.findViewById(R.id.name)
         private val phone: TextView = view.findViewById(R.id.phone)
         private val group: TextView = view.findViewById(R.id.group)
@@ -42,13 +43,23 @@ class ContactAdapter(
         private val btnDelete: ImageButton = view.findViewById(R.id.btnDelete)
 
         fun bind(contact: Contact) {
+            val firstInitial = contact.firstName.firstOrNull()?.toString().orEmpty()
             val secondInitial = contact.lastName?.firstOrNull()?.toString().orEmpty()
-            val initials = "${contact.firstName.firstOrNull() ?: '?'}$secondInitial".uppercase()
-            avatar.text = initials
-            name.text = listOfNotNull(contact.firstName, contact.lastName).joinToString(" ")
-            phone.text = contact.phone
-            group.text = contact.group
+            avatar.text = (firstInitial + secondInitial).ifEmpty { "?" }.uppercase()
 
+            name.text = listOfNotNull(contact.firstName, contact.lastName?.takeIf { it.isNotBlank() }).joinToString(" ")
+            phone.text = contact.phone
+            group.text = when (contact.group) {
+                "family" -> "Семья"
+                "friends" -> "Друзья"
+                "work" -> "Работа"
+                else -> "Прочие"
+            }
+
+            val isWork = contact.group == "work" || contact.isWorkContact
+            workBadge.visibility = if (isWork) View.VISIBLE else View.GONE
+
+            itemView.setOnClickListener { onEdit(contact) }
             btnEdit.setOnClickListener { onEdit(contact) }
             btnDelete.setOnClickListener { onDelete(contact) }
         }

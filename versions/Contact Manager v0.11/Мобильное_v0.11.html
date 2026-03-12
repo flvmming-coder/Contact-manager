@@ -1,0 +1,761 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Mobile Contacts</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+        :root {
+            --primary: #4361ee;
+            --primary-dark: #3a56d4;
+            --secondary: #7209b7;
+            --success: #06d6a0;
+            --danger: #ef476f;
+            --warning: #ffd166;
+            --dark: #2b2d42;
+            --light: #f8f9fa;
+            --gray: #6c757d;
+            --gradient: linear-gradient(135deg, var(--primary), var(--secondary));
+        }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Inter', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+        body {
+            background: var(--gradient);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 0;
+        }
+        .mobile-container {
+            width: 100%;
+            max-width: 380px;
+            height: 700px;
+            background: var(--light);
+            border-radius: 40px;
+            overflow: hidden;
+            box-shadow: 0 30px 50px rgba(0,0,0,0.3);
+            display: flex;
+            flex-direction: column;
+            animation: phoneAppear 0.5s ease-out;
+        }
+        @keyframes phoneAppear {
+            from { transform: scale(0.9) translateY(50px); opacity: 0; }
+            to { transform: scale(1) translateY(0); opacity: 1; }
+        }
+        /* Статус-бар (Android-стиль) */
+        .status-bar {
+            background: var(--dark);
+            height: 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 16px;
+            color: white;
+            font-size: 14px;
+            font-weight: 500;
+        }
+        .status-left {
+            display: flex;
+            gap: 4px;
+        }
+        .app-header {
+            background: var(--gradient);
+            padding: 10px 16px;
+            color: white;
+        }
+        .header-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        .header-top h1 {
+            font-size: 22px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .header-actions {
+            display: flex;
+            gap: 16px;
+        }
+        .header-actions i {
+            font-size: 20px;
+            cursor: pointer;
+        }
+        .stats-container {
+            display: flex;
+            gap: 12px;
+            background: rgba(255,255,255,0.2);
+            padding: 8px 12px;
+            border-radius: 30px;
+        }
+        .search-section {
+            padding: 12px 16px;
+            background: white;
+        }
+        .search-box {
+            background: #f1f5f9;
+            border-radius: 30px;
+            padding: 10px 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .search-box input {
+            flex: 1;
+            border: none;
+            background: transparent;
+            outline: none;
+            font-size: 16px;
+        }
+        .groups-tabs {
+            padding: 8px 16px;
+            background: white;
+            border-bottom: 1px solid #e9ecef;
+            overflow-x: auto;
+            white-space: nowrap;
+            scrollbar-width: none;
+        }
+        .groups-tabs::-webkit-scrollbar { display: none; }
+        .tabs-container {
+            display: flex;
+            gap: 8px;
+        }
+        .group-tab {
+            padding: 6px 16px;
+            border-radius: 30px;
+            background: #f1f5f9;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .group-tab.active {
+            background: var(--gradient);
+            color: white;
+            box-shadow: 0 5px 15px rgba(67,97,238,0.3);
+        }
+        .content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px;
+            background: #f8fafc;
+        }
+        .contacts-section {
+            margin-bottom: 20px;
+        }
+        .section-title {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .contact-card {
+            background: white;
+            border-radius: 20px;
+            padding: 12px;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            border: 1px solid rgba(0,0,0,0.05);
+        }
+        .contact-avatar {
+            width: 50px;
+            height: 50px;
+            background: var(--gradient);
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 700;
+            position: relative;
+        }
+        .work-badge {
+            position: absolute;
+            bottom: -4px;
+            right: -4px;
+            width: 20px;
+            height: 20px;
+            background: var(--success);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 10px;
+            border: 2px solid white;
+        }
+        .contact-info {
+            flex: 1;
+        }
+        .contact-name {
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .contact-phone {
+            font-size: 13px;
+            color: var(--gray);
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .contact-actions {
+            display: flex;
+            gap: 8px;
+        }
+        .contact-actions i {
+            width: 32px;
+            height: 32px;
+            background: #f1f5f9;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--gray);
+            cursor: pointer;
+        }
+        .fab-add {
+            position: absolute;
+            bottom: 16px;
+            right: 16px;
+            width: 56px;
+            height: 56px;
+            background: var(--gradient);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 24px;
+            box-shadow: 0 10px 25px rgba(67,97,238,0.4);
+            cursor: pointer;
+            z-index: 100;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            backdrop-filter: blur(5px);
+            z-index: 1000;
+            align-items: flex-end;
+        }
+        .modal.active {
+            display: flex;
+        }
+        .modal-content {
+            background: white;
+            width: 100%;
+            border-radius: 30px 30px 0 0;
+            padding: 20px;
+            max-height: 80vh;
+            overflow-y: auto;
+            animation: slideUp 0.3s ease-out;
+        }
+        @keyframes slideUp {
+            from { transform: translateY(100%); }
+            to { transform: translateY(0); }
+        }
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+        .close-btn {
+            width: 40px;
+            height: 40px;
+            background: #f1f5f9;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+        .form-group {
+            margin-bottom: 12px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 4px;
+            font-weight: 600;
+            font-size: 14px;
+        }
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e9ecef;
+            border-radius: 15px;
+            font-size: 16px;
+        }
+        .form-group input:focus {
+            border-color: var(--primary);
+            outline: none;
+        }
+        .btn {
+            width: 100%;
+            padding: 14px;
+            border: none;
+            border-radius: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        .btn-primary {
+            background: var(--gradient);
+            color: white;
+        }
+        .btn-outline {
+            background: transparent;
+            border: 2px solid var(--primary);
+            color: var(--primary);
+        }
+        .btn-danger {
+            background: #fed7d7;
+            color: #c53030;
+            border: none;
+        }
+        .import-options {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        .import-card {
+            background: #f8fafc;
+            padding: 16px;
+            border-radius: 15px;
+            text-align: center;
+            cursor: pointer;
+        }
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            right: 20px;
+            background: var(--dark);
+            color: white;
+            padding: 12px 20px;
+            border-radius: 25px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            z-index: 2000;
+            animation: toastSlide 0.3s;
+        }
+        .toast.success { background: var(--success); }
+        .toast.error { background: var(--danger); }
+        @keyframes toastSlide {
+            from { transform: translateY(100%); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: var(--gray);
+        }
+    </style>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+<div class="mobile-container">
+    <!-- Статус-бар с реальным временем -->
+    <div class="status-bar">
+        <div class="status-left">
+            <i class="fas fa-signal"></i>
+            <i class="fas fa-wifi"></i>
+        </div>
+        <span id="currentTime">12:34</span>
+        <span><i class="fas fa-battery-full"></i></span>
+    </div>
+
+    <div class="app-header">
+        <div class="header-top">
+            <h1><i class="fas fa-address-book"></i> Контакты</h1>
+            <div class="header-actions">
+                <i class="fas fa-cloud-upload-alt" onclick="openImportModal()"></i>
+                <i class="fab fa-google" id="googleAuthBtn" onclick="toggleGoogleAuth()"></i>
+            </div>
+        </div>
+        <div class="stats-container">
+            <div class="stat-badge"><i class="fas fa-users"></i> <span id="totalContacts">0</span></div>
+            <div class="stat-badge"><i class="fas fa-briefcase"></i> <span id="workContacts">0</span></div>
+            <div class="stat-badge"><i class="fas fa-download"></i> <span id="importedContacts">0</span></div>
+        </div>
+    </div>
+
+    <div class="search-section">
+        <div class="search-box">
+            <i class="fas fa-search"></i>
+            <input type="text" id="searchInput" placeholder="Поиск...">
+        </div>
+    </div>
+
+    <div class="groups-tabs">
+        <div class="tabs-container" id="tabsContainer">
+            <div class="group-tab active" onclick="filterByGroup('all')"><i class="fas fa-inbox"></i> Все <span class="group-count" id="allCount">0</span></div>
+            <div class="group-tab" onclick="filterByGroup('family')"><i class="fas fa-heart"></i> Семья <span class="group-count" id="familyCount">0</span></div>
+            <div class="group-tab" onclick="filterByGroup('friends')"><i class="fas fa-beer"></i> Друзья <span class="group-count" id="friendsCount">0</span></div>
+            <div class="group-tab" onclick="filterByGroup('work')"><i class="fas fa-briefcase"></i> Работа <span class="group-count" id="workCount">0</span></div>
+        </div>
+    </div>
+
+    <div class="content" id="content"></div>
+
+    <div class="fab-add" onclick="openContactModal()"><i class="fas fa-plus"></i></div>
+</div>
+
+<!-- Модальное окно контакта -->
+<div class="modal" id="contactModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 id="modalTitle">Новый контакт</h3>
+            <div class="close-btn" onclick="closeModal('contactModal')"><i class="fas fa-times"></i></div>
+        </div>
+        <form id="contactForm" onsubmit="saveContact(event)">
+            <input type="hidden" id="contactId">
+            <div class="form-group">
+                <label>Имя *</label>
+                <input type="text" id="firstName" required placeholder="Имя">
+            </div>
+            <div class="form-group">
+                <label>Фамилия</label>
+                <input type="text" id="lastName" placeholder="Фамилия">
+            </div>
+            <div class="form-group">
+                <label>Телефон *</label>
+                <input type="tel" id="phone" required placeholder="+7 (999) 999-99-99">
+            </div>
+            <div class="form-group">
+                <label>Email</label>
+                <input type="email" id="email" placeholder="mail@example.com">
+            </div>
+            <div class="form-group">
+                <label>Группа</label>
+                <select id="group">
+                    <option value="family">Семья</option>
+                    <option value="friends">Друзья</option>
+                    <option value="work">Работа</option>
+                    <option value="other">Другое</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Адрес</label>
+                <textarea id="address" rows="2" placeholder="Адрес"></textarea>
+            </div>
+            <div class="form-group">
+                <label>День рождения</label>
+                <input type="date" id="birthday">
+            </div>
+            <div style="display: flex; gap: 10px;">
+                <button type="submit" class="btn btn-primary" style="flex:2;"><i class="fas fa-save"></i> Сохранить</button>
+                <button type="button" class="btn btn-danger" id="deleteInModalBtn" onclick="deleteCurrentContact()" style="flex:1; display: none;"><i class="fas fa-trash"></i></button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Модальное окно импорта -->
+<div class="modal" id="importModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Импорт контактов</h3>
+            <div class="close-btn" onclick="closeModal('importModal')"><i class="fas fa-times"></i></div>
+        </div>
+        <div class="import-options">
+            <div class="import-card" onclick="document.getElementById('csvFileInput').click()">
+                <i class="fas fa-file-csv"></i><span>CSV файл</span>
+            </div>
+            <div class="import-card" onclick="importFromGoogleMock()">
+                <i class="fab fa-google"></i><span>Google</span>
+            </div>
+        </div>
+        <div class="form-group">
+            <label>Вставьте контакты (Имя,Телефон)</label>
+            <textarea id="bulkImport" rows="5" placeholder="Анна, +79991234567&#10;Петр, +79997654321"></textarea>
+        </div>
+        <button class="btn btn-primary" onclick="processBulkImport()"><i class="fas fa-upload"></i> Импортировать</button>
+    </div>
+</div>
+
+<input type="file" id="csvFileInput" accept=".csv" style="display: none;">
+
+<script>
+    class MobileContactManager {
+        constructor() {
+            this.contacts = [];
+            this.currentFilter = 'all';
+            this.importedCount = 0;
+            this.loadContacts();
+            this.bindEvents();
+            this.startClock();
+        }
+        loadContacts() {
+            const saved = localStorage.getItem('mobileContacts');
+            if (saved) {
+                const data = JSON.parse(saved);
+                this.contacts = data.contacts || [];
+                this.importedCount = data.importedCount || 0;
+            } else {
+                this.contacts = [
+                    { id: Date.now() - 1000, firstName: 'Анна', lastName: 'Иванова', phone: '+7 (999) 123-45-67', email: 'anna@work.com', group: 'work', address: 'Москва', birthday: '1990-05-15' },
+                    { id: Date.now() - 2000, firstName: 'Петр', lastName: 'Сидоров', phone: '+7 (999) 765-43-21', group: 'friends' },
+                    { id: Date.now() - 3000, firstName: 'Мария', lastName: 'Петрова', phone: '+7 (999) 555-55-55', group: 'family' }
+                ];
+            }
+            this.updateStats();
+            this.render();
+        }
+        saveContacts() {
+            localStorage.setItem('mobileContacts', JSON.stringify({ contacts: this.contacts, importedCount: this.importedCount }));
+            this.updateStats();
+            this.render();
+        }
+        addContact(contact) {
+            contact.id = Date.now();
+            this.contacts.push(contact);
+            this.saveContacts();
+            this.showToast('Контакт добавлен', 'success');
+        }
+        updateContact(id, updatedContact) {
+            const index = this.contacts.findIndex(c => c.id === id);
+            if (index !== -1) {
+                updatedContact.id = id;
+                this.contacts[index] = updatedContact;
+                this.saveContacts();
+                this.showToast('Контакт обновлён', 'success');
+            }
+        }
+        deleteContact(id) {
+            if (confirm('Удалить контакт?')) {
+                this.contacts = this.contacts.filter(c => c.id !== id);
+                this.saveContacts();
+                this.showToast('Контакт удалён', 'error');
+            }
+        }
+        importContacts(contactsArray) {
+            let added = 0;
+            contactsArray.forEach(item => {
+                if (item.name && item.phone) {
+                    this.contacts.push({
+                        id: Date.now() + added,
+                        firstName: item.name.split(' ')[0] || item.name,
+                        lastName: item.name.split(' ')[1] || '',
+                        phone: item.phone,
+                        group: 'other'
+                    });
+                    added++;
+                }
+            });
+            this.importedCount += added;
+            this.saveContacts();
+            this.showToast(`Импортировано ${added} контактов`, 'success');
+        }
+        getFilteredContacts() {
+            let filtered = this.contacts;
+            if (this.currentFilter !== 'all') filtered = filtered.filter(c => c.group === this.currentFilter);
+            const term = document.getElementById('searchInput').value.toLowerCase();
+            if (term) {
+                filtered = filtered.filter(c => c.firstName.toLowerCase().includes(term) || (c.lastName && c.lastName.toLowerCase().includes(term)) || c.phone.includes(term));
+            }
+            return filtered;
+        }
+        updateStats() {
+            document.getElementById('totalContacts').textContent = this.contacts.length;
+            document.getElementById('workContacts').textContent = this.contacts.filter(c => c.group === 'work').length;
+            document.getElementById('importedContacts').textContent = this.importedCount;
+            document.getElementById('allCount').textContent = this.contacts.length;
+            document.getElementById('familyCount').textContent = this.contacts.filter(c => c.group === 'family').length;
+            document.getElementById('friendsCount').textContent = this.contacts.filter(c => c.group === 'friends').length;
+            document.getElementById('workCount').textContent = this.contacts.filter(c => c.group === 'work').length;
+        }
+        render() {
+            const container = document.getElementById('content');
+            const filtered = this.getFilteredContacts();
+            if (!filtered.length) {
+                container.innerHTML = '<div class="empty-state"><i class="fas fa-address-book"></i><h4>Нет контактов</h4><p>Добавьте новый контакт</p></div>';
+                return;
+            }
+            const grouped = {};
+            filtered.sort((a,b) => a.firstName.localeCompare(b.firstName)).forEach(c => {
+                const letter = c.firstName[0].toUpperCase();
+                if (!grouped[letter]) grouped[letter] = [];
+                grouped[letter].push(c);
+            });
+            container.innerHTML = Object.keys(grouped).sort().map(letter => `
+                <div class="contacts-section">
+                    <div class="section-title"><h3>${letter}</h3><span>${grouped[letter].length}</span></div>
+                    ${grouped[letter].map(c => this.renderContactCard(c)).join('')}
+                </div>
+            `).join('');
+        }
+        renderContactCard(contact) {
+            const initials = (contact.firstName[0] + (contact.lastName ? contact.lastName[0] : '')).toUpperCase();
+            return `
+                <div class="contact-card" data-id="${contact.id}">
+                    <div class="contact-avatar">${initials}</div>
+                    <div class="contact-info">
+                        <div class="contact-name">${contact.firstName} ${contact.lastName || ''}</div>
+                        <div class="contact-phone"><i class="fas fa-phone"></i> ${contact.phone}</div>
+                    </div>
+                    <div class="contact-actions">
+                        <i class="fas fa-edit" onclick="event.stopPropagation(); editContact(${contact.id})"></i>
+                        <i class="fas fa-trash" onclick="event.stopPropagation(); deleteContact(${contact.id})"></i>
+                    </div>
+                </div>
+            `;
+        }
+        showToast(message, type) {
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.innerHTML = `<i class="fas ${type==='success'?'fa-check-circle':'fa-exclamation-circle'}"></i><span>${message}</span>`;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 3000);
+        }
+        bindEvents() {
+            document.getElementById('searchInput').addEventListener('input', () => this.render());
+            document.getElementById('csvFileInput').addEventListener('change', (e) => this.importFromCsv(e.target.files[0]));
+        }
+        importFromCsv(file) {
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const lines = e.target.result.split('\n');
+                const contacts = [];
+                lines.forEach(line => {
+                    if (!line.trim()) return;
+                    const parts = line.split(',').map(s => s.trim());
+                    if (parts.length >= 2) {
+                        contacts.push({ name: parts[0], phone: parts[1] });
+                    }
+                });
+                if (contacts.length) this.importContacts(contacts);
+            };
+            reader.readAsText(file);
+        }
+        startClock() {
+            const update = () => {
+                const now = new Date();
+                document.getElementById('currentTime').textContent = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            };
+            update();
+            setInterval(update, 60000);
+        }
+    }
+
+    const app = new MobileContactManager();
+
+    // Глобальные функции
+    function openContactModal(id = null) {
+        const modal = document.getElementById('contactModal');
+        const deleteBtn = document.getElementById('deleteInModalBtn');
+        document.getElementById('modalTitle').innerText = id ? 'Редактировать' : 'Новый контакт';
+        if (id) {
+            const contact = app.contacts.find(c => c.id === id);
+            if (contact) {
+                document.getElementById('contactId').value = contact.id;
+                document.getElementById('firstName').value = contact.firstName;
+                document.getElementById('lastName').value = contact.lastName || '';
+                document.getElementById('phone').value = contact.phone;
+                document.getElementById('email').value = contact.email || '';
+                document.getElementById('group').value = contact.group || 'other';
+                document.getElementById('address').value = contact.address || '';
+                document.getElementById('birthday').value = contact.birthday || '';
+                deleteBtn.style.display = 'block';
+            }
+        } else {
+            document.getElementById('contactForm').reset();
+            document.getElementById('contactId').value = '';
+            deleteBtn.style.display = 'none';
+        }
+        modal.classList.add('active');
+    }
+    function closeModal(modalId) {
+        document.getElementById(modalId).classList.remove('active');
+    }
+    function saveContact(event) {
+        event.preventDefault();
+        const data = {
+            firstName: document.getElementById('firstName').value,
+            lastName: document.getElementById('lastName').value,
+            phone: document.getElementById('phone').value,
+            email: document.getElementById('email').value,
+            group: document.getElementById('group').value,
+            address: document.getElementById('address').value,
+            birthday: document.getElementById('birthday').value
+        };
+        const id = document.getElementById('contactId').value;
+        if (id) app.updateContact(parseInt(id), data);
+        else app.addContact(data);
+        closeModal('contactModal');
+    }
+    function editContact(id) { openContactModal(id); }
+    function deleteContact(id) { app.deleteContact(id); }
+    function deleteCurrentContact() {
+        const id = document.getElementById('contactId').value;
+        if (id) {
+            app.deleteContact(parseInt(id));
+            closeModal('contactModal');
+        }
+    }
+    function filterByGroup(group) {
+        app.currentFilter = group;
+        document.querySelectorAll('.group-tab').forEach(t => t.classList.remove('active'));
+        event.currentTarget.classList.add('active');
+        app.render();
+    }
+    function openImportModal() { document.getElementById('importModal').classList.add('active'); }
+    function processBulkImport() {
+        const text = document.getElementById('bulkImport').value;
+        const lines = text.split('\n');
+        const contacts = lines.map(line => {
+            const parts = line.split(',');
+            if (parts.length >= 2) return { name: parts[0].trim(), phone: parts[1].trim() };
+            return null;
+        }).filter(c => c);
+        app.importContacts(contacts);
+        closeModal('importModal');
+    }
+    function importFromGoogleMock() {
+        app.importContacts([{ name: 'Импорт Google 1', phone: '+79991112233' }, { name: 'Импорт Google 2', phone: '+79991112244' }]);
+        closeModal('importModal');
+    }
+
+    // Google Auth имитация
+    function toggleGoogleAuth() {
+        const btn = document.getElementById('googleAuthBtn');
+        if (btn.style.color === 'rgb(6, 214, 160)') {
+            btn.style.color = '';
+            app.showToast('Выход выполнен', 'success');
+        } else {
+            btn.style.color = '#06d6a0';
+            app.showToast('Вы вошли как user@gmail.com', 'success');
+        }
+    }
+</script>
+</body>
+</html>

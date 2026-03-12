@@ -1,4 +1,4 @@
-﻿// Project-level build configuration
+// Project-level build configuration
 buildscript {
     repositories {
         google()
