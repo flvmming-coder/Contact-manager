@@ -42,7 +42,8 @@ class ContactAdapter(
         private val btnDelete: ImageButton = view.findViewById(R.id.btnDelete)
 
         fun bind(contact: Contact) {
-            val initials = "${contact.firstName.firstOrNull() ?: '?'}${contact.lastName?.firstOrNull() ?: ''}".uppercase()
+            val secondInitial = contact.lastName?.firstOrNull()?.toString().orEmpty()
+            val initials = "${contact.firstName.firstOrNull() ?: '?'}$secondInitial".uppercase()
             avatar.text = initials
             name.text = listOfNotNull(contact.firstName, contact.lastName).joinToString(" ")
             phone.text = contact.phone
