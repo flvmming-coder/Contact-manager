@@ -10,6 +10,7 @@ import android.text.TextWatcher
 import android.view.View
 import android.widget.EditText
 import android.widget.ImageButton
+import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
@@ -18,12 +19,12 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.example.contactmanagerdemo.R
 import com.example.contactmanagerdemo.data.Contact
+import com.example.contactmanagerdemo.data.ContactDbHelper
 import com.example.contactmanagerdemo.data.ContactRepository
 import com.google.android.material.chip.Chip
 import com.google.android.material.chip.ChipGroup
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.google.android.material.snackbar.Snackbar
-import com.google.android.material.textfield.TextInputEditText
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -34,7 +35,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var adapter: ContactAdapter
 
     private lateinit var currentTime: TextView
-    private lateinit var searchInput: TextInputEditText
+    private lateinit var searchInput: EditText
     private lateinit var groupChips: ChipGroup
     private lateinit var totalCount: TextView
     private lateinit var workCount: TextView
@@ -50,6 +51,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnGoogleAuth: ImageButton
 
     private var isGoogleAuthed = false
+    private var uiReady = false
     private val clockHandler = Handler(Looper.getMainLooper())
     private val clockRunnable = object : Runnable {
         override fun run() {
@@ -62,61 +64,72 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_main)
+        try {
+            setContentView(R.layout.activity_main)
 
-        repo = ContactRepository(this)
+            repo = ContactRepository(this)
 
-        currentTime = findViewById(R.id.currentTime)
-        searchInput = findViewById(R.id.searchInput)
-        groupChips = findViewById(R.id.groupChips)
-        totalCount = findViewById(R.id.totalCount)
-        workCount = findViewById(R.id.workCount)
-        importedCount = findViewById(R.id.importedCount)
-        emptyState = findViewById(R.id.emptyState)
+            currentTime = findViewById(R.id.currentTime)
+            searchInput = findViewById(R.id.searchInput)
+            groupChips = findViewById(R.id.groupChips)
+            totalCount = findViewById(R.id.totalCount)
+            workCount = findViewById(R.id.workCount)
+            importedCount = findViewById(R.id.importedCount)
+            emptyState = findViewById(R.id.emptyState)
 
-        chipAll = findViewById(R.id.chip_all)
-        chipFamily = findViewById(R.id.chip_family)
-        chipFriends = findViewById(R.id.chip_friends)
-        chipWork = findViewById(R.id.chip_work)
-        chipOther = findViewById(R.id.chip_other)
+            chipAll = findViewById(R.id.chip_all)
+            chipFamily = findViewById(R.id.chip_family)
+            chipFriends = findViewById(R.id.chip_friends)
+            chipWork = findViewById(R.id.chip_work)
+            chipOther = findViewById(R.id.chip_other)
 
-        btnGoogleAuth = findViewById(R.id.btnGoogleAuth)
+            btnGoogleAuth = findViewById(R.id.btnGoogleAuth)
 
-        adapter = ContactAdapter(
-            onEdit = { openEditContact(it.id) },
-            onDelete = { deleteContact(it) },
-        )
+            adapter = ContactAdapter(
+                onEdit = { openEditContact(it.id) },
+                onDelete = { deleteContact(it) },
+            )
 
-        val recyclerView = findViewById<RecyclerView>(R.id.recyclerView)
-        recyclerView.layoutManager = LinearLayoutManager(this)
-        recyclerView.adapter = adapter
+            val recyclerView = findViewById<RecyclerView>(R.id.recyclerView)
+            recyclerView.layoutManager = LinearLayoutManager(this)
+            recyclerView.adapter = adapter
 
-        findViewById<FloatingActionButton>(R.id.fabAdd).setOnClickListener {
-            openCreateContact()
-        }
-
-        findViewById<ImageButton>(R.id.btnImport).setOnClickListener { showImportOptions() }
-        findViewById<ImageButton>(R.id.btnWork).setOnClickListener { showWorkDialog() }
-        btnGoogleAuth.setOnClickListener { toggleGoogleAuth() }
-
-        searchInput.addTextChangedListener(object : TextWatcher {
-            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
-                applyFilters()
+            findViewById<FloatingActionButton>(R.id.fabAdd).setOnClickListener {
+                openCreateContact()
             }
-            override fun afterTextChanged(s: Editable?) {}
-        })
 
-        groupChips.setOnCheckedChangeListener { _, _ -> applyFilters() }
+            findViewById<ImageButton>(R.id.btnImport).setOnClickListener { showImportOptions() }
+            findViewById<ImageButton>(R.id.btnWork).setOnClickListener { showWorkDialog() }
+            btnGoogleAuth.setOnClickListener { toggleGoogleAuth() }
 
-        updateTime()
-        clockHandler.postDelayed(clockRunnable, 60_000L)
+            searchInput.addTextChangedListener(object : TextWatcher {
+                override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+                override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                    applyFilters()
+                }
+                override fun afterTextChanged(s: Editable?) {}
+            })
+
+            groupChips.setOnCheckedChangeListener { _, _ -> applyFilters() }
+
+            updateTime()
+            clockHandler.postDelayed(clockRunnable, 60_000L)
+            uiReady = true
+        } catch (error: Throwable) {
+            showFallbackScreen(error)
+        }
     }
 
     override fun onResume() {
         super.onResume()
-        seedContactsIfNeeded()
-        loadContacts()
+        if (!uiReady) return
+
+        try {
+            seedContactsIfNeeded()
+            loadContacts()
+        } catch (_: Throwable) {
+            recoverDatabaseAndReload()
+        }
     }
 
     override fun onDestroy() {
@@ -372,5 +385,33 @@ class MainActivity : AppCompatActivity() {
             "Выход выполнен"
         }
         Snackbar.make(findViewById(R.id.recyclerView), message, Snackbar.LENGTH_SHORT).show()
+    }
+
+    private fun recoverDatabaseAndReload() {
+        deleteDatabase(ContactDbHelper.DB_NAME)
+        repo = ContactRepository(this)
+        seedContactsIfNeeded()
+        loadContacts()
+    }
+
+    private fun showFallbackScreen(error: Throwable) {
+        uiReady = false
+
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(32, 32, 32, 32)
+        }
+        val title = TextView(this).apply {
+            text = "Contact Manager: безопасный запуск"
+            textSize = 20f
+        }
+        val details = TextView(this).apply {
+            text = "Приложение перешло в fallback-режим из-за ошибки инициализации: ${error.javaClass.simpleName}"
+            textSize = 14f
+        }
+
+        root.addView(title)
+        root.addView(details)
+        setContentView(root)
     }
 }

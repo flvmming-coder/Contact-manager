@@ -156,7 +156,7 @@
                     android:src="@android:drawable/ic_menu_search"
                     app:tint="#6C757D" />
 
-                <com.google.android.material.textfield.TextInputEditText
+                <EditText
                     android:id="@+id/searchInput"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
