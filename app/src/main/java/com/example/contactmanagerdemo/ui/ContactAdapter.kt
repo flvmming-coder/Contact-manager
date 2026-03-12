@@ -12,26 +12,57 @@ import com.example.contactmanagerdemo.data.Contact
 class ContactAdapter(
     private val onEdit: (Contact) -> Unit,
     private val onDelete: (Contact) -> Unit,
-) : RecyclerView.Adapter<ContactAdapter.ContactViewHolder>() {
+) : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
 
-    private val items = mutableListOf<Contact>()
+    private val rows = mutableListOf<RowItem>()
 
-    fun submitList(list: List<Contact>) {
-        items.clear()
-        items.addAll(list)
+    fun submitContacts(contacts: List<Contact>) {
+        rows.clear()
+
+        val grouped = contacts
+            .sortedBy { it.firstName.lowercase() }
+            .groupBy { it.firstName.firstOrNull()?.uppercaseChar()?.toString() ?: "#" }
+
+        grouped.toSortedMap().forEach { (letter, letterContacts) ->
+            rows.add(RowItem.Section(letter))
+            letterContacts.forEach { rows.add(RowItem.ContactItem(it)) }
+        }
+
         notifyDataSetChanged()
     }
 
-    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ContactViewHolder {
-        val view = LayoutInflater.from(parent.context).inflate(R.layout.item_contact, parent, false)
-        return ContactViewHolder(view)
+    override fun getItemViewType(position: Int): Int {
+        return when (rows[position]) {
+            is RowItem.Section -> TYPE_SECTION
+            is RowItem.ContactItem -> TYPE_CONTACT
+        }
     }
 
-    override fun onBindViewHolder(holder: ContactViewHolder, position: Int) {
-        holder.bind(items[position])
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
+        return if (viewType == TYPE_SECTION) {
+            val view = LayoutInflater.from(parent.context).inflate(R.layout.item_section, parent, false)
+            SectionViewHolder(view)
+        } else {
+            val view = LayoutInflater.from(parent.context).inflate(R.layout.item_contact, parent, false)
+            ContactViewHolder(view)
+        }
     }
 
-    override fun getItemCount(): Int = items.size
+    override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
+        when (val row = rows[position]) {
+            is RowItem.Section -> (holder as SectionViewHolder).bind(row.letter)
+            is RowItem.ContactItem -> (holder as ContactViewHolder).bind(row.contact)
+        }
+    }
+
+    override fun getItemCount(): Int = rows.size
+
+    inner class SectionViewHolder(view: View) : RecyclerView.ViewHolder(view) {
+        private val title: TextView = view.findViewById(R.id.sectionTitle)
+        fun bind(letter: String) {
+            title.text = letter
+        }
+    }
 
     inner class ContactViewHolder(view: View) : RecyclerView.ViewHolder(view) {
         private val avatar: TextView = view.findViewById(R.id.avatar)
@@ -43,25 +74,39 @@ class ContactAdapter(
         private val btnDelete: ImageButton = view.findViewById(R.id.btnDelete)
 
         fun bind(contact: Contact) {
-            val firstInitial = contact.firstName.firstOrNull()?.toString().orEmpty()
-            val secondInitial = contact.lastName?.firstOrNull()?.toString().orEmpty()
-            avatar.text = (firstInitial + secondInitial).ifEmpty { "?" }.uppercase()
-
-            name.text = listOfNotNull(contact.firstName, contact.lastName?.takeIf { it.isNotBlank() }).joinToString(" ")
-            phone.text = contact.phone
-            group.text = when (contact.group) {
-                "family" -> "Семья"
-                "friends" -> "Друзья"
-                "work" -> "Работа"
-                else -> "Прочие"
+            val initials = buildString {
+                append(contact.firstName.firstOrNull()?.uppercaseChar() ?: '?')
+                contact.lastName?.firstOrNull()?.let { append(it.uppercaseChar()) }
             }
 
-            val isWork = contact.group == "work" || contact.isWorkContact
-            workBadge.visibility = if (isWork) View.VISIBLE else View.GONE
+            avatar.text = initials
+            name.text = listOfNotNull(contact.firstName, contact.lastName).joinToString(" ")
+            phone.text = contact.phone
+            group.text = mapGroup(contact.group)
+            workBadge.visibility = if (contact.group == "work") View.VISIBLE else View.GONE
 
             itemView.setOnClickListener { onEdit(contact) }
             btnEdit.setOnClickListener { onEdit(contact) }
             btnDelete.setOnClickListener { onDelete(contact) }
         }
+    }
+
+    private fun mapGroup(code: String): String {
+        return when (code) {
+            "family" -> "Семья"
+            "friends" -> "Друзья"
+            "work" -> "Работа"
+            else -> "Другое"
+        }
+    }
+
+    private sealed interface RowItem {
+        data class Section(val letter: String) : RowItem
+        data class ContactItem(val contact: Contact) : RowItem
+    }
+
+    private companion object {
+        const val TYPE_SECTION = 0
+        const val TYPE_CONTACT = 1
     }
 }

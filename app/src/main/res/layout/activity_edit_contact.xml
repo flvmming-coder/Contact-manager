@@ -1,7 +1,8 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:background="#F8FAFC">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -9,11 +10,21 @@
         android:orientation="vertical"
         android:padding="16dp">
 
+        <TextView
+            android:id="@+id/editTitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="12dp"
+            android:text="Новый контакт"
+            android:textColor="#2B2D42"
+            android:textSize="20sp"
+            android:textStyle="bold" />
+
         <EditText
             android:id="@+id/inputFirstName"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:hint="Имя"
+            android:hint="Имя *"
             android:inputType="textPersonName" />
 
         <EditText
@@ -27,7 +38,7 @@
             android:id="@+id/inputPhone"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:hint="Телефон"
+            android:hint="Телефон *"
             android:inputType="phone" />
 
         <EditText
@@ -37,25 +48,11 @@
             android:hint="Email"
             android:inputType="textEmailAddress" />
 
-        <EditText
+        <Spinner
             android:id="@+id/inputGroup"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:hint="Группа (family/friends/work/other)"
-            android:inputType="text" />
-
-        <CheckBox
-            android:id="@+id/checkWork"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Рабочий контакт" />
-
-        <EditText
-            android:id="@+id/inputWorkTask"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:hint="Задача"
-            android:inputType="text" />
+            android:layout_marginTop="8dp" />
 
         <EditText
             android:id="@+id/inputAddress"
@@ -74,8 +71,8 @@
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:layout_marginTop="12dp">
+            android:layout_marginTop="14dp"
+            android:orientation="horizontal">
 
             <Button
                 android:id="@+id/btnSave"
@@ -88,9 +85,20 @@
                 android:id="@+id/btnCancel"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
                 android:layout_weight="1"
                 android:text="Отмена" />
         </LinearLayout>
+
+        <Button
+            android:id="@+id/btnDelete"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:backgroundTint="#EF476F"
+            android:text="Удалить"
+            android:textColor="@android:color/white"
+            android:visibility="gone" />
 
     </LinearLayout>
 </ScrollView>

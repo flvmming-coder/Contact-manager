@@ -2,16 +2,15 @@
 
 import android.content.Intent
 import android.graphics.PorterDuff
+import android.net.Uri
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
 import android.text.Editable
 import android.text.TextWatcher
 import android.view.View
 import android.widget.EditText
 import android.widget.ImageButton
-import android.widget.LinearLayout
 import android.widget.TextView
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
@@ -19,22 +18,20 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.example.contactmanagerdemo.R
 import com.example.contactmanagerdemo.data.Contact
-import com.example.contactmanagerdemo.data.ContactDbHelper
-import com.example.contactmanagerdemo.data.ContactRepository
+import com.example.contactmanagerdemo.data.ContactPrefsStorage
 import com.google.android.material.chip.Chip
 import com.google.android.material.chip.ChipGroup
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.google.android.material.snackbar.Snackbar
-import java.text.SimpleDateFormat
-import java.util.Date
+import java.io.BufferedReader
+import java.io.InputStreamReader
 import java.util.Locale
 
 class MainActivity : AppCompatActivity() {
 
-    private lateinit var repo: ContactRepository
+    private lateinit var storage: ContactPrefsStorage
     private lateinit var adapter: ContactAdapter
 
-    private lateinit var currentTime: TextView
     private lateinit var searchInput: EditText
     private lateinit var groupChips: ChipGroup
     private lateinit var totalCount: TextView
@@ -51,111 +48,83 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnGoogleAuth: ImageButton
 
     private var isGoogleAuthed = false
-    private var uiReady = false
-    private val clockHandler = Handler(Looper.getMainLooper())
-    private val clockRunnable = object : Runnable {
-        override fun run() {
-            updateTime()
-            clockHandler.postDelayed(this, 60_000L)
+    private var allContacts: List<Contact> = emptyList()
+
+    private val csvPicker = registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
+        if (uri != null) {
+            importFromCsv(uri)
         }
     }
 
-    private var allContacts: List<Contact> = emptyList()
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        try {
-            setContentView(R.layout.activity_main)
+        setContentView(R.layout.activity_main)
 
-            repo = ContactRepository(this)
+        storage = ContactPrefsStorage(this)
 
-            currentTime = findViewById(R.id.currentTime)
-            searchInput = findViewById(R.id.searchInput)
-            groupChips = findViewById(R.id.groupChips)
-            totalCount = findViewById(R.id.totalCount)
-            workCount = findViewById(R.id.workCount)
-            importedCount = findViewById(R.id.importedCount)
-            emptyState = findViewById(R.id.emptyState)
+        searchInput = findViewById(R.id.searchInput)
+        groupChips = findViewById(R.id.groupChips)
+        totalCount = findViewById(R.id.totalCount)
+        workCount = findViewById(R.id.workCount)
+        importedCount = findViewById(R.id.importedCount)
+        emptyState = findViewById(R.id.emptyState)
 
-            chipAll = findViewById(R.id.chip_all)
-            chipFamily = findViewById(R.id.chip_family)
-            chipFriends = findViewById(R.id.chip_friends)
-            chipWork = findViewById(R.id.chip_work)
-            chipOther = findViewById(R.id.chip_other)
+        chipAll = findViewById(R.id.chip_all)
+        chipFamily = findViewById(R.id.chip_family)
+        chipFriends = findViewById(R.id.chip_friends)
+        chipWork = findViewById(R.id.chip_work)
+        chipOther = findViewById(R.id.chip_other)
 
-            btnGoogleAuth = findViewById(R.id.btnGoogleAuth)
+        btnGoogleAuth = findViewById(R.id.btnGoogleAuth)
 
-            adapter = ContactAdapter(
-                onEdit = { openEditContact(it.id) },
-                onDelete = { deleteContact(it) },
-            )
+        adapter = ContactAdapter(
+            onEdit = { openEditContact(it.id) },
+            onDelete = { deleteContact(it) },
+        )
 
-            val recyclerView = findViewById<RecyclerView>(R.id.recyclerView)
-            recyclerView.layoutManager = LinearLayoutManager(this)
-            recyclerView.adapter = adapter
+        val recyclerView = findViewById<RecyclerView>(R.id.recyclerView)
+        recyclerView.layoutManager = LinearLayoutManager(this)
+        recyclerView.adapter = adapter
 
-            findViewById<FloatingActionButton>(R.id.fabAdd).setOnClickListener {
-                openCreateContact()
-            }
-
-            findViewById<ImageButton>(R.id.btnImport).setOnClickListener { showImportOptions() }
-            findViewById<ImageButton>(R.id.btnWork).setOnClickListener { showWorkDialog() }
-            btnGoogleAuth.setOnClickListener { toggleGoogleAuth() }
-
-            searchInput.addTextChangedListener(object : TextWatcher {
-                override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-                override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
-                    applyFilters()
-                }
-                override fun afterTextChanged(s: Editable?) {}
-            })
-
-            groupChips.setOnCheckedChangeListener { _, _ -> applyFilters() }
-
-            updateTime()
-            clockHandler.postDelayed(clockRunnable, 60_000L)
-            uiReady = true
-        } catch (error: Throwable) {
-            showFallbackScreen(error)
+        findViewById<FloatingActionButton>(R.id.fabAdd).setOnClickListener {
+            openCreateContact()
         }
+
+        findViewById<ImageButton>(R.id.btnImport).setOnClickListener { showImportOptions() }
+        btnGoogleAuth.setOnClickListener { toggleGoogleAuth() }
+
+        searchInput.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                applyFilters()
+            }
+            override fun afterTextChanged(s: Editable?) {}
+        })
+
+        groupChips.setOnCheckedChangeListener { _, _ -> applyFilters() }
     }
 
     override fun onResume() {
         super.onResume()
-        if (!uiReady) return
-
-        try {
-            seedContactsIfNeeded()
-            loadContacts()
-        } catch (_: Throwable) {
-            recoverDatabaseAndReload()
-        }
+        ensureSeedData()
+        loadContacts()
     }
 
-    override fun onDestroy() {
-        super.onDestroy()
-        clockHandler.removeCallbacks(clockRunnable)
-    }
-
-    private fun updateTime() {
-        val text = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
-        currentTime.text = text
-    }
-
-    private fun seedContactsIfNeeded() {
-        if (repo.getAllContacts().isNotEmpty()) return
+    private fun ensureSeedData() {
+        if (storage.getAllContacts().isNotEmpty()) return
 
         val now = System.currentTimeMillis()
-        repo.bulkImport(
+        storage.saveAllContacts(
             listOf(
                 Contact(
+                    id = now - 3,
                     firstName = "Анна",
                     lastName = "Иванова",
                     phone = "+7 (999) 123-45-67",
                     email = "anna@work.com",
                     group = "work",
                     isWorkContact = true,
-                    workTask = "Связаться по проекту",
+                    workTask = null,
                     address = "Москва",
                     birthday = "1990-05-15",
                     imported = false,
@@ -163,6 +132,7 @@ class MainActivity : AppCompatActivity() {
                     updatedAt = now,
                 ),
                 Contact(
+                    id = now - 2,
                     firstName = "Петр",
                     lastName = "Сидоров",
                     phone = "+7 (999) 765-43-21",
@@ -177,6 +147,7 @@ class MainActivity : AppCompatActivity() {
                     updatedAt = now,
                 ),
                 Contact(
+                    id = now - 1,
                     firstName = "Мария",
                     lastName = "Петрова",
                     phone = "+7 (999) 555-55-55",
@@ -195,27 +166,26 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun loadContacts() {
-        allContacts = repo.getAllContacts().sortedBy { it.firstName.lowercase(Locale.getDefault()) }
-        updateStats(allContacts)
-        updateChipCounters(allContacts)
+        allContacts = storage.getAllContacts().sortedBy { it.firstName.lowercase(Locale.getDefault()) }
+        updateStats()
+        updateChipCounters()
         applyFilters()
     }
 
-    private fun updateStats(list: List<Contact>) {
-        val workContacts = list.count { it.group == "work" || it.isWorkContact }
-        val imported = list.count { it.imported }
-
-        totalCount.text = "Всего: ${list.size}"
-        workCount.text = "Работа: $workContacts"
+    private fun updateStats() {
+        val work = allContacts.count { it.group == "work" }
+        val imported = allContacts.count { it.imported }
+        totalCount.text = "Всего: ${allContacts.size}"
+        workCount.text = "Работа: $work"
         importedCount.text = "Импорт: $imported"
     }
 
-    private fun updateChipCounters(list: List<Contact>) {
-        chipAll.text = "Все (${list.size})"
-        chipFamily.text = "Семья (${list.count { it.group == "family" }})"
-        chipFriends.text = "Друзья (${list.count { it.group == "friends" }})"
-        chipWork.text = "Работа (${list.count { it.group == "work" }})"
-        chipOther.text = "Прочие (${list.count { it.group == "other" }})"
+    private fun updateChipCounters() {
+        chipAll.text = "Все (${allContacts.size})"
+        chipFamily.text = "Семья (${allContacts.count { it.group == "family" }})"
+        chipFriends.text = "Друзья (${allContacts.count { it.group == "friends" }})"
+        chipWork.text = "Работа (${allContacts.count { it.group == "work" }})"
+        chipOther.text = "Другое (${allContacts.count { it.group == "other" }})"
     }
 
     private fun applyFilters() {
@@ -228,17 +198,16 @@ class MainActivity : AppCompatActivity() {
             else -> "all"
         }
 
-        val filtered = allContacts.filter { c ->
-            val matchesGroup = group == "all" || c.group == group
-            val matchesQuery = query.isEmpty() ||
-                c.firstName.lowercase(Locale.getDefault()).contains(query) ||
-                (c.lastName?.lowercase(Locale.getDefault())?.contains(query) == true) ||
-                c.phone.contains(query)
-
-            matchesGroup && matchesQuery
+        val filtered = allContacts.filter { contact ->
+            val matchGroup = group == "all" || contact.group == group
+            val matchQuery = query.isEmpty() ||
+                contact.firstName.lowercase(Locale.getDefault()).contains(query) ||
+                (contact.lastName?.lowercase(Locale.getDefault())?.contains(query) == true) ||
+                contact.phone.contains(query)
+            matchGroup && matchQuery
         }
 
-        adapter.submitList(filtered)
+        adapter.submitContacts(filtered)
         emptyState.visibility = if (filtered.isEmpty()) View.VISIBLE else View.GONE
     }
 
@@ -257,8 +226,8 @@ class MainActivity : AppCompatActivity() {
             .setTitle("Удалить контакт?")
             .setMessage("${contact.firstName} ${contact.lastName.orEmpty()}")
             .setPositiveButton("Удалить") { _, _ ->
-                repo.deleteContact(contact.id)
-                Snackbar.make(findViewById(R.id.recyclerView), "Контакт удален", Snackbar.LENGTH_SHORT).show()
+                storage.delete(contact.id)
+                showToast("Контакт удален", false)
                 loadContacts()
             }
             .setNegativeButton("Отмена", null)
@@ -266,112 +235,103 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showImportOptions() {
-        val options = arrayOf("Импорт из текста", "Импорт Google (демо)")
+        val options = arrayOf("Импорт CSV", "Импорт Google (демо)", "Ручной ввод")
         AlertDialog.Builder(this)
-            .setTitle("Импорт")
+            .setTitle("Импорт контактов")
             .setItems(options) { _, which ->
                 when (which) {
-                    0 -> showBulkImportDialog()
+                    0 -> csvPicker.launch("text/*")
                     1 -> importGoogleMock()
+                    2 -> showManualImportDialog()
                 }
             }
             .show()
     }
 
-    private fun showBulkImportDialog() {
+    private fun importFromCsv(uri: Uri) {
+        val rows = mutableListOf<Pair<String, String>>()
+        contentResolver.openInputStream(uri)?.use { stream ->
+            BufferedReader(InputStreamReader(stream)).useLines { lines ->
+                lines.forEach { line ->
+                    val parts = line.split(",")
+                    if (parts.size >= 2) {
+                        val name = parts[0].trim()
+                        val phone = parts[1].trim()
+                        if (name.isNotBlank() && phone.isNotBlank()) {
+                            rows.add(name to phone)
+                        }
+                    }
+                }
+            }
+        }
+
+        importNamePhoneRows(rows)
+    }
+
+    private fun showManualImportDialog() {
         val input = EditText(this).apply {
             hint = "Имя,Телефон"
             minLines = 5
         }
 
         AlertDialog.Builder(this)
-            .setTitle("Импорт из текста")
+            .setTitle("Ручной импорт")
             .setView(input)
             .setPositiveButton("Импортировать") { _, _ ->
-                val lines = input.text.toString().split("\n")
-                val now = System.currentTimeMillis()
-                val contacts = lines.mapNotNull { line ->
-                    val parts = line.split(",")
-                    if (parts.size < 2) return@mapNotNull null
-
-                    val fullName = parts[0].trim()
-                    val nameParts = fullName.split(" ")
-                    Contact(
-                        firstName = nameParts.firstOrNull().orEmpty(),
-                        lastName = nameParts.drop(1).joinToString(" ").ifBlank { null },
-                        phone = parts[1].trim(),
-                        email = parts.getOrNull(2)?.trim()?.ifBlank { null },
-                        group = "other",
-                        isWorkContact = false,
-                        workTask = null,
-                        address = null,
-                        birthday = null,
-                        imported = true,
-                        createdAt = now,
-                        updatedAt = now,
-                    )
-                }.filter { it.firstName.isNotBlank() && it.phone.isNotBlank() }
-
-                if (contacts.isNotEmpty()) {
-                    repo.bulkImport(contacts)
-                    Snackbar.make(findViewById(R.id.recyclerView), "Импортировано: ${contacts.size}", Snackbar.LENGTH_SHORT).show()
-                    loadContacts()
-                }
+                val rows = input.text.toString()
+                    .split("\n")
+                    .mapNotNull { line ->
+                        val parts = line.split(",")
+                        if (parts.size >= 2) {
+                            val name = parts[0].trim()
+                            val phone = parts[1].trim()
+                            if (name.isNotBlank() && phone.isNotBlank()) name to phone else null
+                        } else {
+                            null
+                        }
+                    }
+                importNamePhoneRows(rows)
             }
             .setNegativeButton("Отмена", null)
             .show()
     }
 
     private fun importGoogleMock() {
-        val now = System.currentTimeMillis()
-        repo.bulkImport(
-            listOf(
-                Contact(
-                    firstName = "Импорт",
-                    lastName = "Google 1",
-                    phone = "+79991112233",
-                    email = null,
-                    group = "other",
-                    isWorkContact = false,
-                    workTask = null,
-                    address = null,
-                    birthday = null,
-                    imported = true,
-                    createdAt = now,
-                    updatedAt = now,
-                ),
-                Contact(
-                    firstName = "Импорт",
-                    lastName = "Google 2",
-                    phone = "+79991112244",
-                    email = null,
-                    group = "other",
-                    isWorkContact = false,
-                    workTask = null,
-                    address = null,
-                    birthday = null,
-                    imported = true,
-                    createdAt = now,
-                    updatedAt = now,
-                ),
-            ),
+        val rows = listOf(
+            "Импорт Google 1" to "+79991112233",
+            "Импорт Google 2" to "+79991112244",
         )
-
-        Snackbar.make(findViewById(R.id.recyclerView), "Импорт Google выполнен", Snackbar.LENGTH_SHORT).show()
-        loadContacts()
+        importNamePhoneRows(rows)
     }
 
-    private fun showWorkDialog() {
-        val tasks = allContacts.filter { it.group == "work" || it.isWorkContact }.map { c ->
-            val task = if (c.workTask.isNullOrBlank()) "Без задачи" else c.workTask
-            "${c.firstName} ${c.lastName.orEmpty()} - $task"
-        }
+    private fun importNamePhoneRows(rows: List<Pair<String, String>>) {
+        if (rows.isEmpty()) return
 
-        AlertDialog.Builder(this)
-            .setTitle("Рабочие задачи")
-            .setMessage(if (tasks.isEmpty()) "Нет рабочих контактов" else tasks.joinToString("\n"))
-            .setPositiveButton("Ок", null)
-            .show()
+        val now = System.currentTimeMillis()
+        val list = storage.getAllContacts()
+        rows.forEachIndexed { index, pair ->
+            val nameParts = pair.first.split(" ").filter { it.isNotBlank() }
+            list.add(
+                Contact(
+                    id = now + index,
+                    firstName = nameParts.firstOrNull().orEmpty(),
+                    lastName = nameParts.drop(1).joinToString(" ").ifBlank { null },
+                    phone = pair.second,
+                    email = null,
+                    group = "other",
+                    isWorkContact = false,
+                    workTask = null,
+                    address = null,
+                    birthday = null,
+                    imported = true,
+                    createdAt = now,
+                    updatedAt = now,
+                ),
+            )
+        }
+        storage.saveAllContacts(list)
+        showToast("Импортировано: ${rows.size}", true)
+        loadContacts()
     }
 
     private fun toggleGoogleAuth() {
@@ -379,39 +339,18 @@ class MainActivity : AppCompatActivity() {
         val color = if (isGoogleAuthed) R.color.accent else android.R.color.white
         btnGoogleAuth.setColorFilter(ContextCompat.getColor(this, color), PorterDuff.Mode.SRC_IN)
 
-        val message = if (isGoogleAuthed) {
+        val msg = if (isGoogleAuthed) {
             "Вы вошли как user@gmail.com"
         } else {
             "Выход выполнен"
         }
-        Snackbar.make(findViewById(R.id.recyclerView), message, Snackbar.LENGTH_SHORT).show()
+        showToast(msg, true)
     }
 
-    private fun recoverDatabaseAndReload() {
-        deleteDatabase(ContactDbHelper.DB_NAME)
-        repo = ContactRepository(this)
-        seedContactsIfNeeded()
-        loadContacts()
-    }
-
-    private fun showFallbackScreen(error: Throwable) {
-        uiReady = false
-
-        val root = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(32, 32, 32, 32)
-        }
-        val title = TextView(this).apply {
-            text = "Contact Manager: безопасный запуск"
-            textSize = 20f
-        }
-        val details = TextView(this).apply {
-            text = "Приложение перешло в fallback-режим из-за ошибки инициализации: ${error.javaClass.simpleName}"
-            textSize = 14f
-        }
-
-        root.addView(title)
-        root.addView(details)
-        setContentView(root)
+    private fun showToast(message: String, isSuccess: Boolean) {
+        val color = if (isSuccess) 0xFF06D6A0.toInt() else 0xFFEF476F.toInt()
+        Snackbar.make(findViewById(R.id.recyclerView), message, Snackbar.LENGTH_SHORT)
+            .setBackgroundTint(color)
+            .show()
     }
 }

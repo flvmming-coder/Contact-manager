@@ -1,0 +1,8 @@
+﻿<resources>
+    <string-array name="contact_group_titles">
+        <item>Семья</item>
+        <item>Друзья</item>
+        <item>Работа</item>
+        <item>Другое</item>
+    </string-array>
+</resources>

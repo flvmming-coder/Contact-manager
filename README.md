@@ -3,26 +3,27 @@
 Нативное Android-приложение (Kotlin, Android 5.0+) для управления контактами.
 
 ## Текущая версия
-`Contact Manager v0.11.2`
+`Contact Manager v0.11.5a`
 
 ## Основные функции
-- Локальное хранение контактов (SQLite)
+- Локальное хранение контактов (SharedPreferences + JSON)
 - Поиск и фильтрация по группам
 - Создание, редактирование, удаление
-- Импорт из текста
-- Google auth mock и рабочие задачи
+- Импорт: CSV, Google mock, ручной ввод
+- Алфавитные секции списка
 
 ## APK
-- Основной файл: `artifacts/ContactManager-v0.11.2-debug.apk`
-- Копия версии: `versions/Contact Manager v0.11.2/ContactManager-v0.11.2-debug.apk`
+- Основной файл: `artifacts/ContactManager-v0.11.5a-debug.apk`
+- Копия версии: `versions/Contact Manager v0.11.5a/ContactManager-v0.11.5a-debug.apk`
 
 ## Версии
 - `versions/DEMO-v0` — нулевая DEMO-версия
-- `versions/Contact Manager v0.11` — архивная версия по HTML v0.11 (без APK в текущей ветке)
-- `versions/Contact Manager v0.11.2` — исправленный стабильный релиз
+- `versions/Contact Manager v0.11` — архивная версия (без APK)
+- `versions/Contact Manager v0.11.2` — релиз стабилизации
+- `versions/Contact Manager v0.11.3` — описание без возможности установки
+- `versions/Contact Manager v0.11.5a` — актуальная версия
 
-## Структура
-- `app/src/main/java/.../data` — SQLite и репозиторий
-- `app/src/main/java/.../ui` — экраны и адаптер
-- `app/src/main/res` — ресурсы интерфейса
-- `docs` — текстовые отчеты по фронтэнду и бэкенду
+## Описания
+- `docs` — рабочая папка текстовых отчетов
+- `descriptions/ФРОНТЭНД` — архив всех frontend-описаний
+- `descriptions/БЭКЭНД` — архив всех backend-описаний
