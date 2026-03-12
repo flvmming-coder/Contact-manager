@@ -1,6 +1,18 @@
-п»ї<resources>
+<resources>
     <string name="app_name">Contact Manager</string>
-    <string name="action_add">Р”РѕР±Р°РІРёС‚СЊ</string>
-    <string name="action_import">РРјРїРѕСЂС‚</string>
-    <string name="action_work">Р Р°Р±РѕС‡РёРµ Р·Р°РґР°С‡Рё</string>
+    <string name="empty_contacts">Контактов пока нет</string>
+    <string name="action_add_contact">Добавить контакт</string>
+    <string name="action_add">Добавить</string>
+    <string name="action_edit">Редактировать</string>
+    <string name="action_delete">Удалить</string>
+    <string name="action_cancel">Отмена</string>
+    <string name="action_save">Сохранить</string>
+    <string name="hint_name">Имя</string>
+    <string name="hint_phone">Телефон</string>
+    <string name="title_add_contact">Новый контакт</string>
+    <string name="title_edit_contact">Редактирование контакта</string>
+    <string name="title_delete_contact">Удаление контакта</string>
+    <string name="message_delete_contact">Удалить контакт %1$s?</string>
+    <string name="error_required">Обязательное поле</string>
+    <string name="error_group">Выберите группу</string>
 </resources>

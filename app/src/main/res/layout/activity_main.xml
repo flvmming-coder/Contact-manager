@@ -1,216 +1,48 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
-<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@drawable/bg_app_gradient">
+    android:orientation="vertical"
+    android:padding="16dp">
 
-    <LinearLayout
+    <TextView
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:layout_margin="10dp"
-        android:background="@drawable/bg_phone_container"
-        android:orientation="vertical">
+        android:layout_height="wrap_content"
+        android:text="@string/app_name"
+        android:textSize="22sp"
+        android:textStyle="bold" />
 
-        <LinearLayout
+    <Spinner
+        android:id="@+id/spinnerFilter"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp" />
+
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:layout_marginTop="12dp">
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/recyclerContacts"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:background="@drawable/bg_header_gradient"
-            android:gravity="center_vertical"
-            android:orientation="horizontal"
-            android:padding="14dp">
+            android:layout_height="match_parent" />
 
-            <TextView
-                android:id="@+id/headerTitle"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="Контакты"
-                android:textColor="@android:color/white"
-                android:textSize="22sp"
-                android:textStyle="bold" />
-
-            <ImageButton
-                android:id="@+id/btnImport"
-                android:layout_width="38dp"
-                android:layout_height="38dp"
-                android:background="@android:color/transparent"
-                android:contentDescription="@string/action_import"
-                android:padding="8dp"
-                app:srcCompat="@drawable/ic_import_white_20" />
-
-            <ImageButton
-                android:id="@+id/btnGoogleAuth"
-                android:layout_width="38dp"
-                android:layout_height="38dp"
-                android:background="@android:color/transparent"
-                android:contentDescription="Google mock"
-                android:padding="8dp"
-                app:srcCompat="@drawable/ic_user_white_20" />
-        </LinearLayout>
-
-        <LinearLayout
+        <TextView
+            android:id="@+id/textEmpty"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginHorizontal="12dp"
-            android:layout_marginTop="10dp"
-            android:background="@drawable/bg_stats_pill"
-            android:orientation="horizontal"
-            android:paddingHorizontal="12dp"
-            android:paddingVertical="8dp">
+            android:layout_height="match_parent"
+            android:gravity="center"
+            android:text="@string/empty_contacts"
+            android:visibility="gone" />
+    </FrameLayout>
 
-            <TextView
-                android:id="@+id/totalCount"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="Всего: 0"
-                android:textColor="#FFFFFF"
-                android:textStyle="bold" />
+    <Button
+        android:id="@+id/btnAddContact"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:text="@string/action_add_contact" />
 
-            <TextView
-                android:id="@+id/workCount"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:gravity="center"
-                android:text="Работа: 0"
-                android:textColor="#FFFFFF"
-                android:textStyle="bold" />
-
-            <TextView
-                android:id="@+id/importedCount"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:gravity="end"
-                android:text="Импорт: 0"
-                android:textColor="#FFFFFF"
-                android:textStyle="bold" />
-        </LinearLayout>
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:paddingHorizontal="14dp"
-            android:paddingTop="10dp">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="44dp"
-                android:background="@drawable/bg_search_box"
-                android:gravity="center_vertical"
-                android:orientation="horizontal"
-                android:paddingHorizontal="12dp">
-
-                <ImageView
-                    android:layout_width="18dp"
-                    android:layout_height="18dp"
-                    app:srcCompat="@android:drawable/ic_menu_search"
-                    app:tint="#6C757D" />
-
-                <EditText
-                    android:id="@+id/searchInput"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:background="@null"
-                    android:hint="Поиск"
-                    android:inputType="text" />
-            </LinearLayout>
-
-            <HorizontalScrollView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:scrollbars="none">
-
-                <com.google.android.material.chip.ChipGroup
-                    android:id="@+id/groupChips"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    app:selectionRequired="true"
-                    app:singleSelection="true">
-
-                    <com.google.android.material.chip.Chip
-                        android:id="@+id/chip_all"
-                        style="@style/Widget.MaterialComponents.Chip.Choice"
-                        android:checked="true"
-                        android:text="Все (0)"
-                        android:textColor="@color/chip_text"
-                        app:chipBackgroundColor="@color/chip_bg"
-                        app:chipCornerRadius="18dp" />
-
-                    <com.google.android.material.chip.Chip
-                        android:id="@+id/chip_family"
-                        style="@style/Widget.MaterialComponents.Chip.Choice"
-                        android:text="Семья (0)"
-                        android:textColor="@color/chip_text"
-                        app:chipBackgroundColor="@color/chip_bg"
-                        app:chipCornerRadius="18dp" />
-
-                    <com.google.android.material.chip.Chip
-                        android:id="@+id/chip_friends"
-                        style="@style/Widget.MaterialComponents.Chip.Choice"
-                        android:text="Друзья (0)"
-                        android:textColor="@color/chip_text"
-                        app:chipBackgroundColor="@color/chip_bg"
-                        app:chipCornerRadius="18dp" />
-
-                    <com.google.android.material.chip.Chip
-                        android:id="@+id/chip_work"
-                        style="@style/Widget.MaterialComponents.Chip.Choice"
-                        android:text="Работа (0)"
-                        android:textColor="@color/chip_text"
-                        app:chipBackgroundColor="@color/chip_bg"
-                        app:chipCornerRadius="18dp" />
-
-                    <com.google.android.material.chip.Chip
-                        android:id="@+id/chip_other"
-                        style="@style/Widget.MaterialComponents.Chip.Choice"
-                        android:text="Другое (0)"
-                        android:textColor="@color/chip_text"
-                        app:chipBackgroundColor="@color/chip_bg"
-                        app:chipCornerRadius="18dp" />
-                </com.google.android.material.chip.ChipGroup>
-            </HorizontalScrollView>
-        </LinearLayout>
-
-        <FrameLayout
-            android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="1">
-
-            <androidx.recyclerview.widget.RecyclerView
-                android:id="@+id/recyclerView"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:padding="10dp" />
-
-            <TextView
-                android:id="@+id/emptyState"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_gravity="center"
-                android:gravity="center"
-                android:padding="24dp"
-                android:text="Нет контактов"
-                android:textColor="#6C757D"
-                android:textSize="16sp"
-                android:visibility="gone" />
-
-            <com.google.android.material.floatingactionbutton.FloatingActionButton
-                android:id="@+id/fabAdd"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="end|bottom"
-                android:layout_margin="14dp"
-                android:contentDescription="@string/action_add"
-                app:backgroundTint="@color/primary"
-                app:srcCompat="@drawable/ic_plus_white_24"
-                app:tint="@android:color/white" />
-        </FrameLayout>
-
-    </LinearLayout>
-
-</FrameLayout>
+</LinearLayout>
