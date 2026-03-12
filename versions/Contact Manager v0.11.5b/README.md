@@ -11,6 +11,9 @@
 Причина обновления:
 - в v0.11.5a наблюдались аварийные завершения на старте.
 
+APK:
+- `ContactManager-v0.11.5b-debug.apk`
+
 Документация:
 - `docs/Описание_Contact Manager v0.11.5b_ФРОНТЭНД.txt`
 - `docs/Описание_Contact Manager v0.11.5b_БЭКЭНД.txt`

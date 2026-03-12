@@ -15,6 +15,10 @@
 ## ѕричина обновлени€
 `v0.11.5a` у части устройств завершалась с ошибкой при запуске. ¬ `v0.11.5b` приложение переписано с нул€ в упрощенном виде дл€ повышени€ стабильности.
 
+## APK
+- `artifacts/ContactManager-v0.11.5b-debug.apk`
+- `versions/Contact Manager v0.11.5b/ContactManager-v0.11.5b-debug.apk`
+
 ## ¬ерсии
 - `versions/DEMO-v0` Ч нулева€ DEMO-верси€
 - `versions/Contact Manager v0.11` Ч архивна€ верси€ (без APK)
@@ -27,6 +31,3 @@
 - `docs` Ч рабоча€ папка текстовых отчетов
 - `descriptions/‘–ќЌ“ЁЌƒ` Ч архив всех frontend-описаний
 - `descriptions/ЅЁ ЁЌƒ` Ч архив всех backend-описаний
-
-## ¬ажно по сборке
-ƒл€ локальной сборки APK требуетс€ установленный Android SDK и файл `local.properties` с `sdk.dir`.
