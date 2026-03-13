@@ -9,8 +9,8 @@ android {
         applicationId "com.example.contactmanagerdemo"
         minSdk 21
         targetSdk 34
-        versionCode 9
-        versionName "0.11.6b"
+        versionCode 10
+        versionName "0.12.1"
     }
 
     buildTypes {

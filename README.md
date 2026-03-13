@@ -3,19 +3,15 @@
 Native Android app (Kotlin, Android 5.0+).
 
 ## Current version
-`Contact Manager v0.11.6b`
+`Contact Manager v0.12.1 (TEST)`
 
-## v0.11.6b changes
-- extended contact form (last name, email, address, birthday),
-- email validation (`@` is required if email is entered),
-- birthday input by typing (`dd/mm/yyyy`) or calendar picker,
-- strict real-date validation and typing normalization,
-- redesigned header with gradient, white title, contact icon, and counters,
-- round FAB add button in the bottom-right corner.
+## Note
+Stable release remains `0.11.6b`.
+Current `0.12.1` is a test transfer of the latest updates for verification.
 
 ## APK
-- `artifacts/ContactManager-v0.11.6b-debug.apk`
-- `versions/Contact Manager v0.11.6b/ContactManager-v0.11.6b-debug.apk`
+- `artifacts/ContactManager-v0.12.1-debug.apk`
+- `versions/Contact Manager v0.12.1/ContactManager-v0.12.1-debug.apk`
 
 ## Versions
 - `versions/DEMO-v0` - released DEMO version (with APK)
@@ -26,7 +22,8 @@ Native Android app (Kotlin, Android 5.0+).
 - `versions/Contact Manager v0.11.5b` - minimal rewrite
 - `versions/Contact Manager v0.11.5c` - encoding fix
 - `versions/Contact Manager v0.11.6a` - Russian UI, stats, search
-- `versions/Contact Manager v0.11.6b` - extended card, validation, header/FAB redesign
+- `versions/Contact Manager v0.11.6b` - stable release
+- `versions/Contact Manager v0.12.1` - test version for verification
 
 ## Descriptions
 - `docs`
