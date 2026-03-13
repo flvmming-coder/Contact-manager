@@ -1,0 +1,13 @@
+﻿Version: Contact Manager v0.11.5c
+Type: FRONTEND
+
+Reason:
+v0.11.5b had visible text encoding artifacts in UI on some devices.
+
+Changes:
+1. UI labels are centralized in resources.
+2. Group labels are rendered from resource mapping.
+3. Existing data is repaired on startup if mojibake is detected.
+
+Result:
+User-facing text is readable and stable.

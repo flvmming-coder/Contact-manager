@@ -1,33 +1,29 @@
-# Contact Manager
+п»ї# Contact Manager
 
-Нативное Android-приложение (Kotlin, Android 5.0+).
+Native Android app (Kotlin, Android 5.0+).
 
-## Текущая версия
-`Contact Manager v0.11.5b`
+## Current version
+`Contact Manager v0.11.5c`
 
-## Что есть в v0.11.5b
-- стабильный минимальный интерфейс без сложной графики,
-- группы по умолчанию: `Семья`, `Друзья`, `Работа`, `Другое`,
-- создание контакта,
-- редактирование контакта,
-- удаление контакта.
-
-## Причина обновления
-`v0.11.5a` у части устройств завершалась с ошибкой при запуске. В `v0.11.5b` приложение переписано с нуля в упрощенном виде для повышения стабильности.
+## v0.11.5c changes
+- fixed text encoding issues in UI,
+- added automatic repair for previously saved mojibake strings,
+- preserved minimal stable CRUD functionality.
 
 ## APK
-- `artifacts/ContactManager-v0.11.5b-debug.apk`
-- `versions/Contact Manager v0.11.5b/ContactManager-v0.11.5b-debug.apk`
+- `artifacts/ContactManager-v0.11.5c-debug.apk`
+- `versions/Contact Manager v0.11.5c/ContactManager-v0.11.5c-debug.apk`
 
-## Версии
-- `versions/DEMO-v0` — нулевая DEMO-версия
-- `versions/Contact Manager v0.11` — архивная версия (без APK)
-- `versions/Contact Manager v0.11.2` — релиз стабилизации
-- `versions/Contact Manager v0.11.3` — описание без возможности установки
-- `versions/Contact Manager v0.11.5a` — описание без возможности установки
-- `versions/Contact Manager v0.11.5b` — новая минимальная версия
+## Versions
+- `versions/DEMO-v0` - released DEMO version (with APK)
+- `versions/Contact Manager v0.11` - archived (no APK)
+- `versions/Contact Manager v0.11.2` - stabilization release
+- `versions/Contact Manager v0.11.3` - description only
+- `versions/Contact Manager v0.11.5a` - description only
+- `versions/Contact Manager v0.11.5b` - minimal rewrite
+- `versions/Contact Manager v0.11.5c` - encoding fix
 
-## Описания
-- `docs` — рабочая папка текстовых отчетов
-- `descriptions/ФРОНТЭНД` — архив всех frontend-описаний
-- `descriptions/БЭКЭНД` — архив всех backend-описаний
+## Descriptions
+- `docs`
+- `descriptions/Р¤Р РћРќРўР­РќР”`
+- `descriptions/Р‘Р­РљР­РќР”`

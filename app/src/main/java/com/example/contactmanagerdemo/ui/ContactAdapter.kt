@@ -12,6 +12,7 @@ import com.example.contactmanagerdemo.data.Contact
 class ContactAdapter(
     private val onEdit: (Contact) -> Unit,
     private val onDelete: (Contact) -> Unit,
+    private val mapGroupLabel: (String) -> String,
 ) : RecyclerView.Adapter<ContactAdapter.ContactViewHolder>() {
 
     private val contacts = mutableListOf<Contact>()
@@ -41,7 +42,7 @@ class ContactAdapter(
 
         fun bind(contact: Contact) {
             textName.text = contact.name
-            textInfo.text = "${contact.phone} | ${contact.group}"
+            textInfo.text = "${contact.phone} | ${mapGroupLabel(contact.group)}"
 
             btnEdit.setOnClickListener { onEdit(contact) }
             btnDelete.setOnClickListener { onDelete(contact) }

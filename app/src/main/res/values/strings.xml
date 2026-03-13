@@ -1,18 +1,33 @@
+п»ї<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Contact Manager</string>
-    <string name="empty_contacts">Контактов пока нет</string>
-    <string name="action_add_contact">Добавить контакт</string>
-    <string name="action_add">Добавить</string>
-    <string name="action_edit">Редактировать</string>
-    <string name="action_delete">Удалить</string>
-    <string name="action_cancel">Отмена</string>
-    <string name="action_save">Сохранить</string>
-    <string name="hint_name">Имя</string>
-    <string name="hint_phone">Телефон</string>
-    <string name="title_add_contact">Новый контакт</string>
-    <string name="title_edit_contact">Редактирование контакта</string>
-    <string name="title_delete_contact">Удаление контакта</string>
-    <string name="message_delete_contact">Удалить контакт %1$s?</string>
-    <string name="error_required">Обязательное поле</string>
-    <string name="error_group">Выберите группу</string>
+
+    <string name="empty_contacts">No contacts yet</string>
+    <string name="action_add_contact">Add contact</string>
+    <string name="action_add">Add</string>
+    <string name="action_edit">Edit</string>
+    <string name="action_delete">Delete</string>
+    <string name="action_cancel">Cancel</string>
+    <string name="action_save">Save</string>
+
+    <string name="hint_name">Name</string>
+    <string name="hint_phone">Phone</string>
+
+    <string name="title_add_contact">New contact</string>
+    <string name="title_edit_contact">Edit contact</string>
+    <string name="title_delete_contact">Delete contact</string>
+    <string name="message_delete_contact">Delete contact %1$s?</string>
+
+    <string name="group_all">All</string>
+    <string name="group_family">Family</string>
+    <string name="group_friends">Friends</string>
+    <string name="group_work">Work</string>
+    <string name="group_other">Other</string>
+
+    <string name="seed_name_anna">Anna Ivanova</string>
+    <string name="seed_name_ilya">Ilya Petrov</string>
+    <string name="seed_name_office">Office Manager</string>
+
+    <string name="error_required">Required field</string>
+    <string name="message_encoding_repaired">Saved text encoding was repaired</string>
 </resources>

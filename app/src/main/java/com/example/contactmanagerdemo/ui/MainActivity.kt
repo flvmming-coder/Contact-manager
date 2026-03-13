@@ -1,4 +1,4 @@
-package com.example.contactmanagerdemo.ui
+﻿package com.example.contactmanagerdemo.ui
 
 import android.os.Bundle
 import android.view.LayoutInflater
@@ -27,6 +27,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var textEmpty: TextView
 
     private var allContacts: MutableList<Contact> = mutableListOf()
+    private lateinit var filterGroupCodes: List<String>
+    private lateinit var editGroupCodes: List<String>
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -43,6 +45,7 @@ class MainActivity : AppCompatActivity() {
         adapter = ContactAdapter(
             onEdit = { contact -> showContactDialog(contact) },
             onDelete = { contact -> showDeleteDialog(contact) },
+            mapGroupLabel = { mapGroupLabel(it) },
         )
         recyclerView.adapter = adapter
 
@@ -52,6 +55,7 @@ class MainActivity : AppCompatActivity() {
             showContactDialog(null)
         }
 
+        migrateContactsIfNeeded()
         loadContactsAndRender()
     }
 
@@ -61,13 +65,16 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun setupFilterSpinner() {
-        val groups = storage.getFilterGroups()
-        val spinnerAdapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, groups)
+        filterGroupCodes = storage.getFilterGroups()
+        val labels = filterGroupCodes.map { mapGroupLabel(it) }
+        val spinnerAdapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, labels)
         spinnerFilter.adapter = spinnerAdapter
         spinnerFilter.setSelection(0)
         spinnerFilter.onItemSelectedListener = SimpleItemSelectedListener {
             renderContacts()
         }
+
+        editGroupCodes = storage.getAvailableGroups()
     }
 
     private fun loadContactsAndRender() {
@@ -76,9 +83,11 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun renderContacts() {
-        val selectedGroup = spinnerFilter.selectedItem?.toString() ?: ContactPrefsStorage.GROUP_ALL
+        val selectedIndex = spinnerFilter.selectedItemPosition.takeIf { it >= 0 } ?: 0
+        val selectedGroupCode = filterGroupCodes.getOrElse(selectedIndex) { ContactPrefsStorage.GROUP_ALL }
+
         val list = allContacts
-            .filter { selectedGroup == ContactPrefsStorage.GROUP_ALL || it.group == selectedGroup }
+            .filter { selectedGroupCode == ContactPrefsStorage.GROUP_ALL || it.group == selectedGroupCode }
             .sortedBy { it.name.lowercase(Locale.getDefault()) }
 
         adapter.submitList(list)
@@ -91,13 +100,13 @@ class MainActivity : AppCompatActivity() {
         val inputPhone = dialogView.findViewById<EditText>(R.id.inputPhone)
         val spinnerGroup = dialogView.findViewById<Spinner>(R.id.spinnerGroup)
 
-        val groups = storage.getAvailableGroups()
-        spinnerGroup.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, groups)
+        val groupLabels = editGroupCodes.map { mapGroupLabel(it) }
+        spinnerGroup.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, groupLabels)
 
         if (contact != null) {
             inputName.setText(contact.name)
             inputPhone.setText(contact.phone)
-            val index = groups.indexOf(contact.group).takeIf { it >= 0 } ?: 0
+            val index = editGroupCodes.indexOf(contact.group).takeIf { it >= 0 } ?: 0
             spinnerGroup.setSelection(index)
         }
 
@@ -120,7 +129,8 @@ class MainActivity : AppCompatActivity() {
             positive.setOnClickListener {
                 val name = inputName.text.toString().trim()
                 val phone = inputPhone.text.toString().trim()
-                val group = spinnerGroup.selectedItem?.toString().orEmpty()
+                val groupIndex = spinnerGroup.selectedItemPosition.takeIf { it >= 0 } ?: 0
+                val group = editGroupCodes.getOrElse(groupIndex) { ContactPrefsStorage.GROUP_OTHER }
 
                 var hasError = false
                 if (name.isBlank()) {
@@ -129,10 +139,6 @@ class MainActivity : AppCompatActivity() {
                 }
                 if (phone.isBlank()) {
                     inputPhone.error = getString(R.string.error_required)
-                    hasError = true
-                }
-                if (group.isBlank()) {
-                    Toast.makeText(this, R.string.error_group, Toast.LENGTH_SHORT).show()
                     hasError = true
                 }
 
@@ -171,5 +177,41 @@ class MainActivity : AppCompatActivity() {
             }
             .setNegativeButton(R.string.action_cancel, null)
             .show()
+    }
+
+    private fun mapGroupLabel(code: String): String {
+        return when (code) {
+            ContactPrefsStorage.GROUP_ALL -> getString(R.string.group_all)
+            ContactPrefsStorage.GROUP_FAMILY -> getString(R.string.group_family)
+            ContactPrefsStorage.GROUP_FRIENDS -> getString(R.string.group_friends)
+            ContactPrefsStorage.GROUP_WORK -> getString(R.string.group_work)
+            else -> getString(R.string.group_other)
+        }
+    }
+
+    private fun migrateContactsIfNeeded() {
+        val contacts = storage.getAllContacts()
+        val repaired = contacts.map {
+            it.copy(
+                name = repairMojibake(it.name).ifBlank { it.name },
+                phone = repairMojibake(it.phone).ifBlank { it.phone },
+            )
+        }
+        if (repaired != contacts) {
+            storage.saveAllContacts(repaired)
+            Toast.makeText(this, R.string.message_encoding_repaired, Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun repairMojibake(value: String): String {
+        if (value.isBlank()) return value
+        val looksBroken = value.contains('\u00D0') || value.contains('\u00D1') || value.contains('\u00C3') || value.contains('\uFFFD')
+        if (!looksBroken) return value
+
+        return try {
+            String(value.toByteArray(Charsets.ISO_8859_1), Charsets.UTF_8)
+        } catch (_: Exception) {
+            value
+        }
     }
 }

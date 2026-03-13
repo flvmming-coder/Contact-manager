@@ -1,9 +1,9 @@
-﻿# DEMO v0
+﻿# DEMO v0 (RELEASE)
 
-Эта папка содержит нулевую DEMO-версию.
+Released DEMO package.
 
-Содержимое:
-- `Мобильное_v0.html` — исходный HTML-макет v0.
-- `Описание_DEMO-v0_Фронтэнд.txt` — исходное описание внешней части DEMO v0.
-- `Описание_DEMO-v0_Бэкэнд.txt` — исходное описание логики/хранения DEMO v0.
-- Android-реализация v0 находится в ранних коммитах репозитория.
+Contents:
+- `ContactManager-DEMO-debug.apk` - installable DEMO APK
+- `Мобильное_v0.html` - source HTML mockup
+- `Описание_DEMO-v0_Фронтэнд.txt`
+- `Описание_DEMO-v0_Бэкэнд.txt`

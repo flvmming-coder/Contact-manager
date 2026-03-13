@@ -1,0 +1,14 @@
+﻿Version: Contact Manager v0.11.5c
+Type: BACKEND
+
+Reason:
+Saved strings could contain mojibake from previous builds.
+
+Changes:
+1. Added `repairMojibake` for contact fields.
+2. Added startup migration to resave repaired names/phones.
+3. Group storage uses canonical codes (all/family/friends/work/other).
+4. Backward compatibility kept via group normalization.
+
+Result:
+Stored data remains compatible and display text is corrected.
