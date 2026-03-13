@@ -62,7 +62,7 @@ class MainActivity : AppCompatActivity() {
 
         setupFilterSpinner()
 
-        findViewById<Button>(R.id.btnAddContact).setOnClickListener {
+        findViewById<View>(R.id.btnAddContact).setOnClickListener {
             showContactDialog(null)
         }
         inputSearch.doAfterTextChanged { renderContacts() }
