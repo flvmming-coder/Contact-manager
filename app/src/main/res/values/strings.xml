@@ -1,33 +1,38 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Contact Manager</string>
 
-    <string name="empty_contacts">No contacts yet</string>
-    <string name="action_add_contact">Add contact</string>
-    <string name="action_add">Add</string>
-    <string name="action_edit">Edit</string>
-    <string name="action_delete">Delete</string>
-    <string name="action_cancel">Cancel</string>
-    <string name="action_save">Save</string>
+    <string name="stats_contacts_default">\u041a\u043e\u043d\u0442\u0430\u043a\u0442\u043e\u0432: 0 | \u0418\u043c\u043f\u043e\u0440\u0442\u0438\u0440\u043e\u0432\u0430\u043d\u043e: 0</string>
+    <string name="stats_contacts">\u041a\u043e\u043d\u0442\u0430\u043a\u0442\u043e\u0432: %1$d | \u0418\u043c\u043f\u043e\u0440\u0442\u0438\u0440\u043e\u0432\u0430\u043d\u043e: %2$d</string>
 
-    <string name="hint_name">Name</string>
-    <string name="hint_phone">Phone</string>
+    <string name="empty_contacts">\u041a\u043e\u043d\u0442\u0430\u043a\u0442\u043e\u0432 \u043f\u043e\u043a\u0430 \u043d\u0435\u0442</string>
+    <string name="hint_search">\u041f\u043e\u0438\u0441\u043a \u043f\u043e \u0438\u043c\u0435\u043d\u0438 \u0438\u043b\u0438 \u043d\u043e\u043c\u0435\u0440\u0443</string>
 
-    <string name="title_add_contact">New contact</string>
-    <string name="title_edit_contact">Edit contact</string>
-    <string name="title_delete_contact">Delete contact</string>
-    <string name="message_delete_contact">Delete contact %1$s?</string>
+    <string name="action_add_contact">\u0414\u043e\u0431\u0430\u0432\u0438\u0442\u044c \u043a\u043e\u043d\u0442\u0430\u043a\u0442</string>
+    <string name="action_add">\u0414\u043e\u0431\u0430\u0432\u0438\u0442\u044c</string>
+    <string name="action_edit">\u0420\u0435\u0434\u0430\u043a\u0442\u0438\u0440\u043e\u0432\u0430\u0442\u044c</string>
+    <string name="action_delete">\u0423\u0434\u0430\u043b\u0438\u0442\u044c</string>
+    <string name="action_cancel">\u041e\u0442\u043c\u0435\u043d\u0430</string>
+    <string name="action_save">\u0421\u043e\u0445\u0440\u0430\u043d\u0438\u0442\u044c</string>
 
-    <string name="group_all">All</string>
-    <string name="group_family">Family</string>
-    <string name="group_friends">Friends</string>
-    <string name="group_work">Work</string>
-    <string name="group_other">Other</string>
+    <string name="hint_name">\u0418\u043c\u044f</string>
+    <string name="hint_phone">\u0422\u0435\u043b\u0435\u0444\u043e\u043d</string>
 
-    <string name="seed_name_anna">Anna Ivanova</string>
-    <string name="seed_name_ilya">Ilya Petrov</string>
-    <string name="seed_name_office">Office Manager</string>
+    <string name="title_add_contact">\u041d\u043e\u0432\u044b\u0439 \u043a\u043e\u043d\u0442\u0430\u043a\u0442</string>
+    <string name="title_edit_contact">\u0420\u0435\u0434\u0430\u043a\u0442\u0438\u0440\u043e\u0432\u0430\u0442\u044c \u043a\u043e\u043d\u0442\u0430\u043a\u0442</string>
+    <string name="title_delete_contact">\u0423\u0434\u0430\u043b\u0435\u043d\u0438\u0435 \u043a\u043e\u043d\u0442\u0430\u043a\u0442\u0430</string>
+    <string name="message_delete_contact">\u0423\u0434\u0430\u043b\u0438\u0442\u044c \u043a\u043e\u043d\u0442\u0430\u043a\u0442 %1$s?</string>
 
-    <string name="error_required">Required field</string>
-    <string name="message_encoding_repaired">Saved text encoding was repaired</string>
+    <string name="group_all">\u0412\u0441\u0435</string>
+    <string name="group_family">\u0421\u0435\u043c\u044c\u044f</string>
+    <string name="group_friends">\u0414\u0440\u0443\u0437\u044c\u044f</string>
+    <string name="group_work">\u0420\u0430\u0431\u043e\u0442\u0430</string>
+    <string name="group_other">\u0414\u0440\u0443\u0433\u043e\u0435</string>
+
+    <string name="seed_name_anna">\u0410\u043d\u043d\u0430 \u0418\u0432\u0430\u043d\u043e\u0432\u0430</string>
+    <string name="seed_name_ilya">\u0418\u043b\u044c\u044f \u041f\u0435\u0442\u0440\u043e\u0432</string>
+    <string name="seed_name_office">\u041e\u0444\u0438\u0441 \u041c\u0435\u043d\u0435\u0434\u0436\u0435\u0440</string>
+
+    <string name="error_required">\u041e\u0431\u044f\u0437\u0430\u0442\u0435\u043b\u044c\u043d\u043e\u0435 \u043f\u043e\u043b\u0435</string>
+    <string name="message_encoding_repaired">\u041a\u043e\u0434\u0438\u0440\u043e\u0432\u043a\u0430 \u0434\u0430\u043d\u043d\u044b\u0445 \u0438\u0441\u043f\u0440\u0430\u0432\u043b\u0435\u043d\u0430</string>
 </resources>

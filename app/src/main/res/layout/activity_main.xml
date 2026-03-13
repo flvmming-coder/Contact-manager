@@ -12,6 +12,22 @@
         android:textSize="22sp"
         android:textStyle="bold" />
 
+    <TextView
+        android:id="@+id/textStats"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:text="@string/stats_contacts_default"
+        android:textSize="14sp" />
+
+    <EditText
+        android:id="@+id/inputSearch"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:hint="@string/hint_search"
+        android:inputType="text" />
+
     <Spinner
         android:id="@+id/spinnerFilter"
         android:layout_width="match_parent"

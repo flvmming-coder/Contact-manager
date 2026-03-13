@@ -44,6 +44,7 @@ class ContactPrefsStorage(context: Context) {
                     put("name", contact.name)
                     put("phone", contact.phone)
                     put("group", contact.group)
+                    put("isImported", contact.isImported)
                 },
             )
         }
@@ -93,6 +94,7 @@ class ContactPrefsStorage(context: Context) {
                         name = name,
                         phone = phone,
                         group = normalizeGroup(rawGroup),
+                        isImported = obj.optBoolean("isImported", obj.optBoolean("imported", false)),
                     ),
                 )
             }

@@ -5,4 +5,5 @@ data class Contact(
     val name: String,
     val phone: String,
     val group: String,
+    val isImported: Boolean = false,
 )

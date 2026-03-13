@@ -11,6 +11,7 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.widget.doAfterTextChanged
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.example.contactmanagerdemo.R
@@ -23,6 +24,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var storage: ContactPrefsStorage
     private lateinit var adapter: ContactAdapter
 
+    private lateinit var textStats: TextView
+    private lateinit var inputSearch: EditText
     private lateinit var spinnerFilter: Spinner
     private lateinit var textEmpty: TextView
 
@@ -36,6 +39,8 @@ class MainActivity : AppCompatActivity() {
 
         storage = ContactPrefsStorage(this)
 
+        textStats = findViewById(R.id.textStats)
+        inputSearch = findViewById(R.id.inputSearch)
         spinnerFilter = findViewById(R.id.spinnerFilter)
         textEmpty = findViewById(R.id.textEmpty)
 
@@ -54,6 +59,7 @@ class MainActivity : AppCompatActivity() {
         findViewById<Button>(R.id.btnAddContact).setOnClickListener {
             showContactDialog(null)
         }
+        inputSearch.doAfterTextChanged { renderContacts() }
 
         migrateContactsIfNeeded()
         loadContactsAndRender()
@@ -79,19 +85,32 @@ class MainActivity : AppCompatActivity() {
 
     private fun loadContactsAndRender() {
         allContacts = storage.getAllContacts()
+        updateStats()
         renderContacts()
     }
 
     private fun renderContacts() {
         val selectedIndex = spinnerFilter.selectedItemPosition.takeIf { it >= 0 } ?: 0
         val selectedGroupCode = filterGroupCodes.getOrElse(selectedIndex) { ContactPrefsStorage.GROUP_ALL }
+        val query = inputSearch.text.toString().trim().lowercase(Locale.getDefault())
 
         val list = allContacts
             .filter { selectedGroupCode == ContactPrefsStorage.GROUP_ALL || it.group == selectedGroupCode }
+            .filter {
+                query.isBlank() ||
+                    it.name.lowercase(Locale.getDefault()).contains(query) ||
+                    it.phone.lowercase(Locale.getDefault()).contains(query)
+            }
             .sortedBy { it.name.lowercase(Locale.getDefault()) }
 
         adapter.submitList(list)
         textEmpty.visibility = if (list.isEmpty()) View.VISIBLE else View.GONE
+    }
+
+    private fun updateStats() {
+        val total = allContacts.size
+        val imported = allContacts.count { it.isImported }
+        textStats.text = getString(R.string.stats_contacts, total, imported)
     }
 
     private fun showContactDialog(contact: Contact?) {
@@ -149,6 +168,7 @@ class MainActivity : AppCompatActivity() {
                     name = name,
                     phone = phone,
                     group = group,
+                    isImported = contact?.isImported ?: false,
                 )
                 storage.upsert(newContact)
                 loadContactsAndRender()
