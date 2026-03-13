@@ -3,15 +3,23 @@
 Native Android app (Kotlin, Android 5.0+).
 
 ## Current version
-`Contact Manager v0.12.1 (TEST)`
+`Contact Manager v0.12.2 (TEST)`
 
-## Note
-Stable release remains `0.11.6b`.
-Current `0.12.1` is a test transfer of the latest updates for verification.
+## Stable release
+`v0.12.1` is published as release.
+
+## v0.12.2 test changes
+- amber gradient FAB (`#f59e0b -> #fbbf24`),
+- amber gradient contacts icon in header,
+- stats text color `#fbbf24`,
+- rounded contact cards with thin border `#64748b`,
+- horizontal scrollable group row under search,
+- selected group highlighted with amber gradient,
+- default selected group is `All` on the left.
 
 ## APK
-- `artifacts/ContactManager-v0.12.1-debug.apk`
-- `versions/Contact Manager v0.12.1/ContactManager-v0.12.1-debug.apk`
+- `artifacts/ContactManager-v0.12.2-debug.apk`
+- `versions/Contact Manager v0.12.2/ContactManager-v0.12.2-debug.apk`
 
 ## Versions
 - `versions/DEMO-v0` - released DEMO version (with APK)
@@ -22,8 +30,9 @@ Current `0.12.1` is a test transfer of the latest updates for verification.
 - `versions/Contact Manager v0.11.5b` - minimal rewrite
 - `versions/Contact Manager v0.11.5c` - encoding fix
 - `versions/Contact Manager v0.11.6a` - Russian UI, stats, search
-- `versions/Contact Manager v0.11.6b` - stable release
-- `versions/Contact Manager v0.12.1` - test version for verification
+- `versions/Contact Manager v0.11.6b` - stable redesign + extended form
+- `versions/Contact Manager v0.12.1` - released test milestone
+- `versions/Contact Manager v0.12.2` - current test UI iteration
 
 ## Descriptions
 - `docs`

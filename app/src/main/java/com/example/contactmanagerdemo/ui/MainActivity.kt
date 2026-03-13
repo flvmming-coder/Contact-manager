@@ -9,11 +9,13 @@ import android.view.View
 import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.EditText
+import android.widget.LinearLayout
 import android.widget.Spinner
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import androidx.core.widget.doAfterTextChanged
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -32,12 +34,14 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var textStats: TextView
     private lateinit var inputSearch: EditText
-    private lateinit var spinnerFilter: Spinner
+    private lateinit var groupContainer: LinearLayout
     private lateinit var textEmpty: TextView
 
     private var allContacts: MutableList<Contact> = mutableListOf()
     private lateinit var filterGroupCodes: List<String>
     private lateinit var editGroupCodes: List<String>
+    private var selectedGroupCode: String = ContactPrefsStorage.GROUP_ALL
+    private val groupViews: MutableMap<String, TextView> = linkedMapOf()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -47,7 +51,7 @@ class MainActivity : AppCompatActivity() {
 
         textStats = findViewById(R.id.textStats)
         inputSearch = findViewById(R.id.inputSearch)
-        spinnerFilter = findViewById(R.id.spinnerFilter)
+        groupContainer = findViewById(R.id.groupContainer)
         textEmpty = findViewById(R.id.textEmpty)
 
         val recyclerView = findViewById<RecyclerView>(R.id.recyclerContacts)
@@ -60,7 +64,7 @@ class MainActivity : AppCompatActivity() {
         )
         recyclerView.adapter = adapter
 
-        setupFilterSpinner()
+        setupFilterGroups()
 
         findViewById<View>(R.id.btnAddContact).setOnClickListener {
             showContactDialog(null)
@@ -76,17 +80,34 @@ class MainActivity : AppCompatActivity() {
         loadContactsAndRender()
     }
 
-    private fun setupFilterSpinner() {
+    private fun setupFilterGroups() {
         filterGroupCodes = storage.getFilterGroups()
-        val labels = filterGroupCodes.map { mapGroupLabel(it) }
-        val spinnerAdapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, labels)
-        spinnerFilter.adapter = spinnerAdapter
-        spinnerFilter.setSelection(0)
-        spinnerFilter.onItemSelectedListener = SimpleItemSelectedListener {
-            renderContacts()
-        }
-
         editGroupCodes = storage.getAvailableGroups()
+        selectedGroupCode = ContactPrefsStorage.GROUP_ALL
+
+        groupContainer.removeAllViews()
+        groupViews.clear()
+        filterGroupCodes.forEach { code ->
+            val tabView = TextView(this).apply {
+                text = mapGroupLabel(code)
+                setPadding(dp(14), dp(8), dp(14), dp(8))
+                setOnClickListener {
+                    selectedGroupCode = code
+                    updateGroupTabsSelection()
+                    renderContacts()
+                }
+            }
+            val lp = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+            ).apply {
+                marginEnd = dp(8)
+            }
+            tabView.layoutParams = lp
+            groupContainer.addView(tabView)
+            groupViews[code] = tabView
+        }
+        updateGroupTabsSelection()
     }
 
     private fun loadContactsAndRender() {
@@ -96,8 +117,6 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun renderContacts() {
-        val selectedIndex = spinnerFilter.selectedItemPosition.takeIf { it >= 0 } ?: 0
-        val selectedGroupCode = filterGroupCodes.getOrElse(selectedIndex) { ContactPrefsStorage.GROUP_ALL }
         val query = inputSearch.text.toString().trim().lowercase(Locale.getDefault())
 
         val list = allContacts
@@ -112,6 +131,27 @@ class MainActivity : AppCompatActivity() {
 
         adapter.submitList(list)
         textEmpty.visibility = if (list.isEmpty()) View.VISIBLE else View.GONE
+    }
+
+    private fun updateGroupTabsSelection() {
+        groupViews.forEach { (code, view) ->
+            val selected = code == selectedGroupCode
+            view.background = ContextCompat.getDrawable(
+                this,
+                if (selected) R.drawable.bg_group_selected_gradient else R.drawable.bg_group_unselected,
+            )
+            view.setTextColor(
+                if (selected) {
+                    0xFFFFFFFF.toInt()
+                } else {
+                    0xFF1E293B.toInt()
+                },
+            )
+        }
+    }
+
+    private fun dp(value: Int): Int {
+        return (value * resources.displayMetrics.density).toInt()
     }
 
     private fun updateStats() {
