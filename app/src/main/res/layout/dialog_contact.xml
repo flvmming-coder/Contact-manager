@@ -13,12 +13,58 @@
         android:inputType="textPersonName" />
 
     <EditText
+        android:id="@+id/inputLastName"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:hint="@string/hint_last_name"
+        android:inputType="textPersonName" />
+
+    <EditText
         android:id="@+id/inputPhone"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="8dp"
         android:hint="@string/hint_phone"
         android:inputType="phone" />
+
+    <EditText
+        android:id="@+id/inputEmail"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:hint="@string/hint_email"
+        android:inputType="textEmailAddress" />
+
+    <EditText
+        android:id="@+id/inputAddress"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:hint="@string/hint_address"
+        android:inputType="textPostalAddress" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:orientation="horizontal">
+
+        <EditText
+            android:id="@+id/inputBirthday"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:hint="@string/hint_birthday"
+            android:inputType="number" />
+
+        <Button
+            android:id="@+id/btnPickBirthday"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:text="@string/action_pick_date" />
+    </LinearLayout>
 
     <Spinner
         android:id="@+id/spinnerGroup"

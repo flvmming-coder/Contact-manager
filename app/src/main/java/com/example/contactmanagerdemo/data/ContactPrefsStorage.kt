@@ -42,7 +42,11 @@ class ContactPrefsStorage(context: Context) {
                 JSONObject().apply {
                     put("id", contact.id)
                     put("name", contact.name)
+                    put("lastName", contact.lastName)
                     put("phone", contact.phone)
+                    put("email", contact.email)
+                    put("address", contact.address)
+                    put("birthday", contact.birthday)
                     put("group", contact.group)
                     put("isImported", contact.isImported)
                 },
@@ -79,11 +83,17 @@ class ContactPrefsStorage(context: Context) {
 
                 val directName = repairMojibake(obj.optString("name")).trim()
                 val firstName = repairMojibake(obj.optString("firstName")).trim()
-                val lastName = repairMojibake(obj.optString("lastName")).trim()
-                val migratedName = listOf(firstName, lastName).filter { it.isNotBlank() }.joinToString(" ")
-                val name = if (directName.isNotBlank()) directName else migratedName
+                val directLastName = repairMojibake(obj.optString("lastName")).trim()
+                val fromLegacyName = if (directName.isNotBlank()) {
+                    val parts = directName.split(" ").filter { it.isNotBlank() }
+                    parts.firstOrNull().orEmpty() to parts.drop(1).joinToString(" ").ifBlank { null }
+                } else {
+                    "" to null
+                }
+                val migratedName = if (firstName.isNotBlank()) firstName else fromLegacyName.first
+                val lastName = directLastName.ifBlank { fromLegacyName.second }
 
-                if (id <= 0L || name.isBlank() || phone.isBlank()) {
+                if (id <= 0L || migratedName.isBlank() || phone.isBlank()) {
                     continue
                 }
 
@@ -91,8 +101,12 @@ class ContactPrefsStorage(context: Context) {
                 result.add(
                     Contact(
                         id = id,
-                        name = name,
+                        name = migratedName,
+                        lastName = lastName,
                         phone = phone,
+                        email = repairMojibake(obj.optString("email")).trim().ifBlank { null },
+                        address = repairMojibake(obj.optString("address")).trim().ifBlank { null },
+                        birthday = repairMojibake(obj.optString("birthday")).trim().ifBlank { null },
                         group = normalizeGroup(rawGroup),
                         isImported = obj.optBoolean("isImported", obj.optBoolean("imported", false)),
                     ),
@@ -107,9 +121,26 @@ class ContactPrefsStorage(context: Context) {
     private fun seedContacts(): List<Contact> {
         val now = System.currentTimeMillis()
         return listOf(
-            Contact(now + 1, appContext.getString(R.string.seed_name_anna), "+7 900 000-00-01", GROUP_FAMILY),
-            Contact(now + 2, appContext.getString(R.string.seed_name_ilya), "+7 900 000-00-02", GROUP_FRIENDS),
-            Contact(now + 3, appContext.getString(R.string.seed_name_office), "+7 900 000-00-03", GROUP_WORK),
+            Contact(
+                id = now + 1,
+                name = appContext.getString(R.string.seed_name_anna),
+                lastName = appContext.getString(R.string.seed_last_name_anna),
+                phone = "+7 900 000-00-01",
+                group = GROUP_FAMILY,
+            ),
+            Contact(
+                id = now + 2,
+                name = appContext.getString(R.string.seed_name_ilya),
+                lastName = appContext.getString(R.string.seed_last_name_ilya),
+                phone = "+7 900 000-00-02",
+                group = GROUP_FRIENDS,
+            ),
+            Contact(
+                id = now + 3,
+                name = appContext.getString(R.string.seed_name_office),
+                phone = "+7 900 000-00-03",
+                group = GROUP_WORK,
+            ),
         )
     }
 

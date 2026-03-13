@@ -41,7 +41,7 @@ class ContactAdapter(
         private val btnDelete: Button = itemView.findViewById(R.id.btnDelete)
 
         fun bind(contact: Contact) {
-            textName.text = contact.name
+            textName.text = listOfNotNull(contact.name, contact.lastName).joinToString(" ")
             textInfo.text = "${contact.phone} | ${mapGroupLabel(contact.group)}"
 
             btnEdit.setOnClickListener { onEdit(contact) }
