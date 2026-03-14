@@ -27,8 +27,10 @@
                     android:id="@+id/imageHeaderIcon"
                     android:layout_width="24dp"
                     android:layout_height="24dp"
+                    android:background="@drawable/bg_fab_gradient_circle"
                     android:contentDescription="@string/app_name"
-                    app:srcCompat="@drawable/ic_contacts_header_gradient" />
+                    android:padding="4dp"
+                    app:srcCompat="@drawable/ic_contacts_header_white" />
 
                 <TextView
                     android:layout_width="match_parent"

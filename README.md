@@ -3,23 +3,25 @@
 Native Android app (Kotlin, Android 5.0+).
 
 ## Current version
-`Contact Manager v0.12.2 (TEST)`
+`Contact Manager v0.12.2a (TEST)`
 
-## Stable release
-`v0.12.1` is published as release.
+## Release state
+- `v0.12.1` published as release
+- `v0.12.2` published as pre-release
+- `v0.12.2a` is current stabilization test build
 
-## v0.12.2 test changes
-- amber gradient FAB (`#f59e0b -> #fbbf24`),
-- amber gradient contacts icon in header,
-- stats text color `#fbbf24`,
-- rounded contact cards with thin border `#64748b`,
-- horizontal scrollable group row under search,
-- selected group highlighted with amber gradient,
-- default selected group is `All` on the left.
+## v0.12.2a focus
+- startup crash investigation and stabilization,
+- safer UI inflation path for header icon and contact cards,
+- persistent event/crash logging to text files on device.
+
+## On-device logs
+Each launch creates a log file in:
+`Android/data/com.example.contactmanagerdemo/files/Documents/ContactManagerLogs/`
 
 ## APK
-- `artifacts/ContactManager-v0.12.2-debug.apk`
-- `versions/Contact Manager v0.12.2/ContactManager-v0.12.2-debug.apk`
+- `artifacts/ContactManager-v0.12.2a-debug.apk`
+- `versions/Contact Manager v0.12.2a/ContactManager-v0.12.2a-debug.apk`
 
 ## Versions
 - `versions/DEMO-v0` - released DEMO version (with APK)
@@ -31,8 +33,9 @@ Native Android app (Kotlin, Android 5.0+).
 - `versions/Contact Manager v0.11.5c` - encoding fix
 - `versions/Contact Manager v0.11.6a` - Russian UI, stats, search
 - `versions/Contact Manager v0.11.6b` - stable redesign + extended form
-- `versions/Contact Manager v0.12.1` - released test milestone
-- `versions/Contact Manager v0.12.2` - current test UI iteration
+- `versions/Contact Manager v0.12.1` - release
+- `versions/Contact Manager v0.12.2` - pre-release
+- `versions/Contact Manager v0.12.2a` - test stabilization build
 
 ## Descriptions
 - `docs`

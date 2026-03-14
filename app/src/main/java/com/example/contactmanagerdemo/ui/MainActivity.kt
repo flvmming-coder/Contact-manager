@@ -19,6 +19,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.widget.doAfterTextChanged
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.example.contactmanagerdemo.core.AppEventLogger
 import com.example.contactmanagerdemo.R
 import com.example.contactmanagerdemo.data.Contact
 import com.example.contactmanagerdemo.data.ContactPrefsStorage
@@ -45,6 +46,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        AppEventLogger.info("APP", "MainActivity onCreate started")
         setContentView(R.layout.activity_main)
 
         storage = ContactPrefsStorage(this)
@@ -73,6 +75,7 @@ class MainActivity : AppCompatActivity() {
 
         migrateContactsIfNeeded()
         loadContactsAndRender()
+        AppEventLogger.info("APP", "MainActivity onCreate completed")
     }
 
     override fun onResume() {
@@ -112,6 +115,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun loadContactsAndRender() {
         allContacts = storage.getAllContacts()
+        AppEventLogger.info("DATA", "Loaded contacts: ${allContacts.size}")
         updateStats()
         renderContacts()
     }
@@ -130,6 +134,7 @@ class MainActivity : AppCompatActivity() {
             .sortedWith(compareBy<Contact> { it.name.lowercase(Locale.getDefault()) }.thenBy { it.lastName.orEmpty().lowercase(Locale.getDefault()) })
 
         adapter.submitList(list)
+        AppEventLogger.info("UI", "Rendered contacts: ${list.size}, group=$selectedGroupCode, query='$query'")
         textEmpty.visibility = if (list.isEmpty()) View.VISIBLE else View.GONE
     }
 
@@ -219,14 +224,17 @@ class MainActivity : AppCompatActivity() {
                 var hasError = false
                 if (name.isBlank()) {
                     inputName.error = getString(R.string.error_required)
+                    AppEventLogger.warn("VALIDATION", "Name is empty")
                     hasError = true
                 }
                 if (phone.isBlank()) {
                     inputPhone.error = getString(R.string.error_required)
+                    AppEventLogger.warn("VALIDATION", "Phone is empty")
                     hasError = true
                 }
                 if (!email.isNullOrBlank() && !email.contains("@")) {
                     inputEmail.error = getString(R.string.error_email_format)
+                    AppEventLogger.warn("VALIDATION", "Invalid email: $email")
                     hasError = true
                 }
 
@@ -237,6 +245,7 @@ class MainActivity : AppCompatActivity() {
                         inputBirthday.setText(it)
                     } ?: run {
                         inputBirthday.error = getString(R.string.error_birthday_format)
+                        AppEventLogger.warn("VALIDATION", "Invalid birthday: $birthdayRaw")
                         hasError = true
                         null
                     }
@@ -256,6 +265,7 @@ class MainActivity : AppCompatActivity() {
                     isImported = contact?.isImported ?: false,
                 )
                 storage.upsert(newContact)
+                AppEventLogger.info("DATA", "Upsert contact id=${newContact.id}")
                 loadContactsAndRender()
                 dialog.dismiss()
             }
@@ -368,6 +378,7 @@ class MainActivity : AppCompatActivity() {
             .setMessage(getString(R.string.message_delete_contact, listOfNotNull(contact.name, contact.lastName).joinToString(" ")))
             .setPositiveButton(R.string.action_delete) { _, _ ->
                 storage.delete(contact.id)
+                AppEventLogger.info("DATA", "Deleted contact id=${contact.id}")
                 loadContactsAndRender()
             }
             .setNegativeButton(R.string.action_cancel, null)
