@@ -8,7 +8,9 @@ Purpose:
 Fixes and hardening:
 - replaced risky drawable setup in header icon rendering,
 - replaced contact card root from MaterialCardView to a plain rounded/stroked layout,
-- added structured app event logger with crash capture.
+- added structured app event logger with crash capture,
+- added safe startup fallback screen: if main layout init fails, app stays open and offers retry,
+- added parse-failure diagnostics for corrupted saved contacts.
 
 Crash/event logs:
 - on each app launch, a new text log file is created in:

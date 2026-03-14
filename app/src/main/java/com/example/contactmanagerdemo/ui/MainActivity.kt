@@ -4,6 +4,7 @@ import android.app.DatePickerDialog
 import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
+import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
 import android.widget.ArrayAdapter
@@ -47,35 +48,40 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         AppEventLogger.info("APP", "MainActivity onCreate started")
-        setContentView(R.layout.activity_main)
+        try {
+            setContentView(R.layout.activity_main)
 
-        storage = ContactPrefsStorage(this)
+            storage = ContactPrefsStorage(this)
 
-        textStats = findViewById(R.id.textStats)
-        inputSearch = findViewById(R.id.inputSearch)
-        groupContainer = findViewById(R.id.groupContainer)
-        textEmpty = findViewById(R.id.textEmpty)
+            textStats = findViewById(R.id.textStats)
+            inputSearch = findViewById(R.id.inputSearch)
+            groupContainer = findViewById(R.id.groupContainer)
+            textEmpty = findViewById(R.id.textEmpty)
 
-        val recyclerView = findViewById<RecyclerView>(R.id.recyclerContacts)
-        recyclerView.layoutManager = LinearLayoutManager(this)
+            val recyclerView = findViewById<RecyclerView>(R.id.recyclerContacts)
+            recyclerView.layoutManager = LinearLayoutManager(this)
 
-        adapter = ContactAdapter(
-            onEdit = { contact -> showContactDialog(contact) },
-            onDelete = { contact -> showDeleteDialog(contact) },
-            mapGroupLabel = { mapGroupLabel(it) },
-        )
-        recyclerView.adapter = adapter
+            adapter = ContactAdapter(
+                onEdit = { contact -> showContactDialog(contact) },
+                onDelete = { contact -> showDeleteDialog(contact) },
+                mapGroupLabel = { mapGroupLabel(it) },
+            )
+            recyclerView.adapter = adapter
 
-        setupFilterGroups()
+            setupFilterGroups()
 
-        findViewById<View>(R.id.btnAddContact).setOnClickListener {
-            showContactDialog(null)
+            findViewById<View>(R.id.btnAddContact).setOnClickListener {
+                showContactDialog(null)
+            }
+            inputSearch.doAfterTextChanged { renderContacts() }
+
+            migrateContactsIfNeeded()
+            loadContactsAndRender()
+            AppEventLogger.info("APP", "MainActivity onCreate completed")
+        } catch (t: Throwable) {
+            AppEventLogger.error("CRASH", "MainActivity initialization failed", t)
+            showStartupFallback()
         }
-        inputSearch.doAfterTextChanged { renderContacts() }
-
-        migrateContactsIfNeeded()
-        loadContactsAndRender()
-        AppEventLogger.info("APP", "MainActivity onCreate completed")
     }
 
     override fun onResume() {
@@ -393,6 +399,42 @@ class MainActivity : AppCompatActivity() {
             ContactPrefsStorage.GROUP_WORK -> getString(R.string.group_work)
             else -> getString(R.string.group_other)
         }
+    }
+
+    private fun showStartupFallback() {
+        val container = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            setPadding(dp(24), dp(24), dp(24), dp(24))
+        }
+        val title = TextView(this).apply {
+            text = getString(R.string.error_startup_title)
+            textSize = 18f
+            gravity = Gravity.CENTER
+            setTextColor(0xFF111827.toInt())
+        }
+        val subtitle = TextView(this).apply {
+            text = getString(R.string.error_startup_subtitle)
+            textSize = 14f
+            gravity = Gravity.CENTER
+            setPadding(0, dp(10), 0, 0)
+            setTextColor(0xFF374151.toInt())
+        }
+        val retry = Button(this).apply {
+            text = getString(R.string.action_retry)
+            setPadding(dp(16), dp(10), dp(16), dp(10))
+            setOnClickListener { recreate() }
+        }
+        val lp = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.WRAP_CONTENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT,
+        ).apply {
+            topMargin = dp(14)
+        }
+        container.addView(title)
+        container.addView(subtitle)
+        container.addView(retry, lp)
+        setContentView(container)
     }
 
     private fun migrateContactsIfNeeded() {

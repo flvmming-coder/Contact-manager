@@ -2,6 +2,7 @@
 
 import android.content.Context
 import com.example.contactmanagerdemo.R
+import com.example.contactmanagerdemo.core.AppEventLogger
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -27,6 +28,9 @@ class ContactPrefsStorage(context: Context) {
         }
 
         if (list.isEmpty()) {
+            if (!raw.isNullOrBlank()) {
+                AppEventLogger.warn("DATA", "Stored contacts were empty/invalid, fallback to seed contacts")
+            }
             val seed = seedContacts()
             saveAllContacts(seed)
             return seed.toMutableList()
@@ -113,7 +117,8 @@ class ContactPrefsStorage(context: Context) {
                 )
             }
             result
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            AppEventLogger.error("DATA", "Failed to parse contacts JSON", e)
             mutableListOf()
         }
     }

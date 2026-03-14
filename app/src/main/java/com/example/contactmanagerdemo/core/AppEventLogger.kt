@@ -23,7 +23,8 @@ object AppEventLogger {
         if (appContext != null) return
         appContext = context.applicationContext
         sessionFileName = "session-${SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date())}.txt"
-        info(TAG_APP, "Logger initialized")
+        val logPath = runCatching { resolveLogFile(context).absolutePath }.getOrDefault("unavailable")
+        info(TAG_APP, "Logger initialized, file=$logPath")
 
         val previous = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
