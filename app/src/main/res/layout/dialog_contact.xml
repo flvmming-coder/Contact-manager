@@ -66,6 +66,17 @@
             android:text="@string/action_pick_date" />
     </LinearLayout>
 
+    <EditText
+        android:id="@+id/inputComment"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:gravity="top|start"
+        android:hint="@string/hint_comment"
+        android:inputType="textCapSentences|textMultiLine"
+        android:maxLength="512"
+        android:minLines="3" />
+
     <Spinner
         android:id="@+id/spinnerGroup"
         android:layout_width="match_parent"

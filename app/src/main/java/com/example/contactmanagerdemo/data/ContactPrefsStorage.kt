@@ -51,6 +51,7 @@ class ContactPrefsStorage(context: Context) {
                     put("email", contact.email)
                     put("address", contact.address)
                     put("birthday", contact.birthday)
+                    put("comment", contact.comment)
                     put("group", contact.group)
                     put("isImported", contact.isImported)
                 },
@@ -111,6 +112,7 @@ class ContactPrefsStorage(context: Context) {
                         email = repairMojibake(obj.optString("email")).trim().ifBlank { null },
                         address = repairMojibake(obj.optString("address")).trim().ifBlank { null },
                         birthday = repairMojibake(obj.optString("birthday")).trim().ifBlank { null },
+                        comment = repairMojibake(obj.optString("comment")).trim().ifBlank { null },
                         group = normalizeGroup(rawGroup),
                         isImported = obj.optBoolean("isImported", obj.optBoolean("imported", false)),
                     ),

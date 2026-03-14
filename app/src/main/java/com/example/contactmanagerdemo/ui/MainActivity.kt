@@ -1,7 +1,13 @@
 package com.example.contactmanagerdemo.ui
 
 import android.app.DatePickerDialog
+import android.content.Intent
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
+import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import android.os.SystemClock
 import android.text.Editable
 import android.text.TextWatcher
 import android.view.Gravity
@@ -16,18 +22,22 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.widget.SwitchCompat
 import androidx.core.content.ContextCompat
 import androidx.core.widget.doAfterTextChanged
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import com.example.contactmanagerdemo.core.AppEventLogger
 import com.example.contactmanagerdemo.R
+import com.example.contactmanagerdemo.core.AppEventLogger
 import com.example.contactmanagerdemo.data.Contact
 import com.example.contactmanagerdemo.data.ContactPrefsStorage
+import org.json.JSONObject
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+import java.net.HttpURLConnection
+import java.net.URL
 
 class MainActivity : AppCompatActivity() {
 
@@ -44,6 +54,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var editGroupCodes: List<String>
     private var selectedGroupCode: String = ContactPrefsStorage.GROUP_ALL
     private val groupViews: MutableMap<String, TextView> = linkedMapOf()
+    private val headerTapHistory: MutableList<Long> = mutableListOf()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -71,6 +82,9 @@ class MainActivity : AppCompatActivity() {
             findViewById<View>(R.id.btnAddContact).setOnClickListener {
                 showContactDialog(null)
             }
+            findViewById<View>(R.id.headerTriggerArea).setOnClickListener {
+                handleHeaderTap()
+            }
             inputSearch.doAfterTextChanged { renderContacts() }
 
             migrateContactsIfNeeded()
@@ -84,6 +98,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        AppEventLogger.info("APP", "MainActivity onResume")
         loadContactsAndRender()
     }
 
@@ -177,6 +192,7 @@ class MainActivity : AppCompatActivity() {
         val inputEmail = dialogView.findViewById<EditText>(R.id.inputEmail)
         val inputAddress = dialogView.findViewById<EditText>(R.id.inputAddress)
         val inputBirthday = dialogView.findViewById<EditText>(R.id.inputBirthday)
+        val inputComment = dialogView.findViewById<EditText>(R.id.inputComment)
         val btnPickBirthday = dialogView.findViewById<Button>(R.id.btnPickBirthday)
         val spinnerGroup = dialogView.findViewById<Spinner>(R.id.spinnerGroup)
 
@@ -195,6 +211,7 @@ class MainActivity : AppCompatActivity() {
             inputEmail.setText(contact.email.orEmpty())
             inputAddress.setText(contact.address.orEmpty())
             inputBirthday.setText(contact.birthday.orEmpty())
+            inputComment.setText(contact.comment.orEmpty())
             val index = editGroupCodes.indexOf(contact.group).takeIf { it >= 0 } ?: 0
             spinnerGroup.setSelection(index)
         }
@@ -222,6 +239,7 @@ class MainActivity : AppCompatActivity() {
                 val email = inputEmail.text.toString().trim().ifBlank { null }
                 val address = inputAddress.text.toString().trim().ifBlank { null }
                 val birthdayRaw = inputBirthday.text.toString().trim()
+                val comment = inputComment.text.toString().trim().ifBlank { null }
                 val groupIndex = spinnerGroup.selectedItemPosition.takeIf { it >= 0 } ?: 0
                 val group = editGroupCodes.getOrElse(groupIndex) { ContactPrefsStorage.GROUP_OTHER }
 
@@ -239,6 +257,11 @@ class MainActivity : AppCompatActivity() {
                 if (!email.isNullOrBlank() && !email.contains("@")) {
                     inputEmail.error = getString(R.string.error_email_format)
                     AppEventLogger.warn("VALIDATION", "Invalid email: $email")
+                    hasError = true
+                }
+                if (!comment.isNullOrBlank() && comment.length > COMMENT_MAX_LENGTH) {
+                    inputComment.error = getString(R.string.error_comment_too_long)
+                    AppEventLogger.warn("VALIDATION", "Comment too long: ${comment.length}")
                     hasError = true
                 }
 
@@ -265,6 +288,7 @@ class MainActivity : AppCompatActivity() {
                     email = email,
                     address = address,
                     birthday = birthday,
+                    comment = comment,
                     group = group,
                     isImported = contact?.isImported ?: false,
                 )
@@ -399,6 +423,167 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun handleHeaderTap() {
+        val now = SystemClock.elapsedRealtime()
+        headerTapHistory.add(now)
+        headerTapHistory.removeAll { timestamp -> now - timestamp > ADMIN_TAP_WINDOW_MS }
+
+        if (headerTapHistory.size >= ADMIN_TAP_COUNT) {
+            headerTapHistory.clear()
+            AppEventLogger.info("ADMIN", "Developer panel requested")
+            showAdminPanel()
+        }
+    }
+
+    private fun showAdminPanel() {
+        val dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_admin_panel, null)
+        val switchLogs = dialogView.findViewById<SwitchCompat>(R.id.switchLogs)
+        val textVersionValue = dialogView.findViewById<TextView>(R.id.textVersionValue)
+        val textLogPathValue = dialogView.findViewById<TextView>(R.id.textLogPathValue)
+        val btnCheckUpdates = dialogView.findViewById<Button>(R.id.btnCheckUpdates)
+        val textUpdateResult = dialogView.findViewById<TextView>(R.id.textUpdateResult)
+
+        switchLogs.isChecked = AppEventLogger.isLoggingEnabled()
+        textVersionValue.text = getString(R.string.admin_version_value, getAppVersionName())
+        textLogPathValue.text = getString(R.string.admin_log_path_value, AppEventLogger.getCurrentLogDirectory(this))
+
+        switchLogs.setOnCheckedChangeListener { _, enabled ->
+            AppEventLogger.setLoggingEnabled(this, enabled)
+            Toast.makeText(
+                this,
+                if (enabled) getString(R.string.admin_logs_enabled) else getString(R.string.admin_logs_disabled),
+                Toast.LENGTH_SHORT,
+            ).show()
+        }
+
+        btnCheckUpdates.setOnClickListener {
+            if (!hasInternetConnection()) {
+                showNoInternetDialog()
+                return@setOnClickListener
+            }
+            textUpdateResult.text = getString(R.string.admin_checking_updates)
+            AppEventLogger.info("ADMIN", "Checking updates from GitHub")
+            checkForUpdatesFromGithub(textUpdateResult)
+        }
+
+        AlertDialog.Builder(this)
+            .setTitle(R.string.admin_panel_title)
+            .setView(dialogView)
+            .setNegativeButton(R.string.action_cancel, null)
+            .show()
+    }
+
+    private fun showNoInternetDialog() {
+        AlertDialog.Builder(this)
+            .setTitle(R.string.admin_no_internet_title)
+            .setMessage(R.string.admin_no_internet_message)
+            .setPositiveButton(R.string.admin_action_try_again, null)
+            .setNegativeButton(R.string.action_cancel, null)
+            .show()
+    }
+
+    private fun hasInternetConnection(): Boolean {
+        @Suppress("DEPRECATION")
+        val cm = getSystemService(CONNECTIVITY_SERVICE) as? ConnectivityManager ?: return false
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            val network = cm.activeNetwork ?: return false
+            val capabilities = cm.getNetworkCapabilities(network) ?: return false
+            capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+        } else {
+            @Suppress("DEPRECATION")
+            cm.activeNetworkInfo?.isConnected == true
+        }
+    }
+
+    private fun checkForUpdatesFromGithub(textUpdateResult: TextView) {
+        Thread {
+            val result = runCatching { fetchLatestReleaseInfo() }
+            runOnUiThread {
+                result.onSuccess { latest ->
+                    val latestNormalized = normalizeVersionTag(latest.tagName)
+                    val currentNormalized = normalizeVersionTag(getAppVersionName())
+                    val hasUpdate = compareVersions(latestNormalized, currentNormalized) > 0
+                    if (hasUpdate) {
+                        textUpdateResult.text = getString(R.string.admin_update_available, latestNormalized)
+                        AppEventLogger.info("ADMIN", "Update available: $latestNormalized")
+                        if (latest.htmlUrl.isNotBlank()) {
+                            AlertDialog.Builder(this)
+                                .setTitle(R.string.admin_panel_title)
+                                .setMessage(getString(R.string.admin_update_available, latestNormalized))
+                                .setPositiveButton(R.string.admin_open_release_page) { _, _ ->
+                                    runCatching {
+                                        startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(latest.htmlUrl)))
+                                    }
+                                }
+                                .setNegativeButton(R.string.action_cancel, null)
+                                .show()
+                        }
+                    } else {
+                        textUpdateResult.text = getString(R.string.admin_update_latest, currentNormalized)
+                        AppEventLogger.info("ADMIN", "No update found, current=$currentNormalized")
+                    }
+                }.onFailure { error ->
+                    textUpdateResult.text = getString(R.string.admin_update_error)
+                    AppEventLogger.error("ADMIN", "Failed to check updates", error)
+                }
+            }
+        }.start()
+    }
+
+    private fun fetchLatestReleaseInfo(): LatestReleaseInfo {
+        val url = URL(GITHUB_LATEST_RELEASE_URL)
+        val connection = (url.openConnection() as HttpURLConnection).apply {
+            requestMethod = "GET"
+            connectTimeout = NETWORK_TIMEOUT_MS
+            readTimeout = NETWORK_TIMEOUT_MS
+            setRequestProperty("Accept", "application/vnd.github+json")
+        }
+        return try {
+            val responseCode = connection.responseCode
+            if (responseCode !in 200..299) {
+                throw IllegalStateException("GitHub API response code=$responseCode")
+            }
+            val body = connection.inputStream.bufferedReader().use { it.readText() }
+            val json = JSONObject(body)
+            LatestReleaseInfo(
+                tagName = json.optString("tag_name", ""),
+                htmlUrl = json.optString("html_url", ""),
+            )
+        } finally {
+            connection.disconnect()
+        }
+    }
+
+    private fun normalizeVersionTag(rawVersion: String): String {
+        return rawVersion.trim().removePrefix("v").removePrefix("V").ifBlank { "0.0.0" }
+    }
+
+    private fun compareVersions(left: String, right: String): Int {
+        val leftParts = parseVersionParts(left)
+        val rightParts = parseVersionParts(right)
+        val maxLen = maxOf(leftParts.size, rightParts.size)
+        for (i in 0 until maxLen) {
+            val a = leftParts.getOrElse(i) { 0 }
+            val b = rightParts.getOrElse(i) { 0 }
+            if (a != b) return a - b
+        }
+        return 0
+    }
+
+    private fun parseVersionParts(version: String): List<Int> {
+        return version.split(".")
+            .map { part ->
+                part.takeWhile { ch -> ch.isDigit() }
+                    .toIntOrNull() ?: 0
+            }
+    }
+
+    private fun getAppVersionName(): String {
+        return runCatching {
+            packageManager.getPackageInfo(packageName, 0).versionName
+        }.getOrDefault("unknown")
+    }
+
     private fun showStartupFallback() {
         val container = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -445,6 +630,7 @@ class MainActivity : AppCompatActivity() {
                 email = it.email?.let { value -> repairMojibake(value).ifBlank { null } },
                 address = it.address?.let { value -> repairMojibake(value).ifBlank { null } },
                 birthday = it.birthday?.let { value -> repairMojibake(value).ifBlank { null } },
+                comment = it.comment?.let { value -> repairMojibake(value).ifBlank { null } },
             )
         }
         if (repaired != contacts) {
@@ -463,5 +649,19 @@ class MainActivity : AppCompatActivity() {
         } catch (_: Exception) {
             value
         }
+    }
+
+    private data class LatestReleaseInfo(
+        val tagName: String,
+        val htmlUrl: String,
+    )
+
+    companion object {
+        private const val COMMENT_MAX_LENGTH = 512
+        private const val ADMIN_TAP_COUNT = 5
+        private const val ADMIN_TAP_WINDOW_MS = 2_000L
+        private const val NETWORK_TIMEOUT_MS = 8_000
+        private const val GITHUB_LATEST_RELEASE_URL =
+            "https://api.github.com/repos/flvmming-coder/Contact-manager/releases/latest"
     }
 }

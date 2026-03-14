@@ -8,6 +8,7 @@ data class Contact(
     val email: String? = null,
     val address: String? = null,
     val birthday: String? = null,
+    val comment: String? = null,
     val group: String,
     val isImported: Boolean = false,
 )
