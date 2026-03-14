@@ -1,21 +1,25 @@
 package com.example.contactmanagerdemo.ui
 
+import android.graphics.Color
+import android.graphics.drawable.GradientDrawable
+import android.os.SystemClock
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.Button
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 import com.example.contactmanagerdemo.R
 import com.example.contactmanagerdemo.data.Contact
+import java.util.Locale
+import kotlin.math.absoluteValue
 
 class ContactAdapter(
     private val onEdit: (Contact) -> Unit,
-    private val onDelete: (Contact) -> Unit,
-    private val mapGroupLabel: (String) -> String,
 ) : RecyclerView.Adapter<ContactAdapter.ContactViewHolder>() {
 
     private val contacts = mutableListOf<Contact>()
+    private var lastTappedId: Long = -1L
+    private var lastTapAtMs: Long = 0L
 
     fun submitList(items: List<Contact>) {
         contacts.clear()
@@ -35,17 +39,66 @@ class ContactAdapter(
     override fun getItemCount(): Int = contacts.size
 
     inner class ContactViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
+        private val root: View = itemView.findViewById(R.id.contactCardRoot)
+        private val textAvatar: TextView = itemView.findViewById(R.id.textAvatar)
         private val textName: TextView = itemView.findViewById(R.id.textName)
-        private val textInfo: TextView = itemView.findViewById(R.id.textInfo)
-        private val btnEdit: Button = itemView.findViewById(R.id.btnEdit)
-        private val btnDelete: Button = itemView.findViewById(R.id.btnDelete)
+        private val textPhone: TextView = itemView.findViewById(R.id.textPhone)
 
         fun bind(contact: Contact) {
             textName.text = listOfNotNull(contact.name, contact.lastName).joinToString(" ")
-            textInfo.text = "${contact.phone} | ${mapGroupLabel(contact.group)}"
+            textPhone.text = contact.phone
 
-            btnEdit.setOnClickListener { onEdit(contact) }
-            btnDelete.setOnClickListener { onDelete(contact) }
+            textAvatar.text = buildInitials(contact)
+            textAvatar.background = GradientDrawable().apply {
+                shape = GradientDrawable.RECTANGLE
+                cornerRadius = 10f * itemView.resources.displayMetrics.density
+                setColor(avatarColorFor(contact))
+            }
+
+            root.setOnClickListener {
+                val now = SystemClock.elapsedRealtime()
+                if (lastTappedId == contact.id && now - lastTapAtMs <= DOUBLE_TAP_WINDOW_MS) {
+                    lastTappedId = -1L
+                    lastTapAtMs = 0L
+                    onEdit(contact)
+                } else {
+                    lastTappedId = contact.id
+                    lastTapAtMs = now
+                }
+            }
         }
+
+        private fun buildInitials(contact: Contact): String {
+            val firstName = contact.name.trim()
+            val lastName = contact.lastName?.trim().orEmpty()
+
+            if (firstName.isBlank() && lastName.isBlank()) return "?"
+
+            if (lastName.isNotBlank()) {
+                val first = firstName.firstOrNull { !it.isWhitespace() }?.toString().orEmpty()
+                val last = lastName.firstOrNull { !it.isWhitespace() }?.toString().orEmpty()
+                return (first + last).ifBlank { "?" }.uppercase(Locale.getDefault())
+            }
+
+            val chars = firstName.filter { !it.isWhitespace() }.take(2)
+            return if (chars.isBlank()) "?" else chars.uppercase(Locale.getDefault())
+        }
+
+        private fun avatarColorFor(contact: Contact): Int {
+            val index = (contact.id.hashCode().absoluteValue) % AVATAR_COLORS.size
+            return AVATAR_COLORS[index]
+        }
+    }
+
+    companion object {
+        private const val DOUBLE_TAP_WINDOW_MS = 1_000L
+        private val AVATAR_COLORS = intArrayOf(
+            Color.parseColor("#1E293B"),
+            Color.parseColor("#0F172A"),
+            Color.parseColor("#334155"),
+            Color.parseColor("#475569"),
+            Color.parseColor("#F59E0B"),
+            Color.parseColor("#FBBF24"),
+        )
     }
 }

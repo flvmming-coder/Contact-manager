@@ -63,8 +63,6 @@ class MainActivity : AppCompatActivity() {
 
             adapter = ContactAdapter(
                 onEdit = { contact -> showContactDialog(contact) },
-                onDelete = { contact -> showDeleteDialog(contact) },
-                mapGroupLabel = { mapGroupLabel(it) },
             )
             recyclerView.adapter = adapter
 
