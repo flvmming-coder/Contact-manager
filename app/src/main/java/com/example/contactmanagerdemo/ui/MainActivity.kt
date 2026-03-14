@@ -80,6 +80,7 @@ class MainActivity : AppCompatActivity() {
             setupFilterGroups()
 
             findViewById<View>(R.id.btnAddContact).setOnClickListener {
+                AppEventLogger.info("UI", "Add contact button clicked")
                 showContactDialog(null)
             }
             findViewById<View>(R.id.headerTriggerArea).setOnClickListener {
@@ -458,7 +459,7 @@ class MainActivity : AppCompatActivity() {
 
         btnCheckUpdates.setOnClickListener {
             if (!hasInternetConnection()) {
-                showNoInternetDialog()
+                showNoInternetDialog { btnCheckUpdates.performClick() }
                 return@setOnClickListener
             }
             textUpdateResult.text = getString(R.string.admin_checking_updates)
@@ -473,11 +474,11 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
 
-    private fun showNoInternetDialog() {
+    private fun showNoInternetDialog(onRetry: () -> Unit) {
         AlertDialog.Builder(this)
             .setTitle(R.string.admin_no_internet_title)
             .setMessage(R.string.admin_no_internet_message)
-            .setPositiveButton(R.string.admin_action_try_again, null)
+            .setPositiveButton(R.string.admin_action_try_again) { _, _ -> onRetry() }
             .setNegativeButton(R.string.action_cancel, null)
             .show()
     }
