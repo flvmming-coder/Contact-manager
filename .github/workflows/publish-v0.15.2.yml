@@ -1,4 +1,4 @@
-name: Publish v0.15.2 Pre-release
+name: Publish v0.15.2 Release
 
 on:
   workflow_dispatch:
@@ -18,6 +18,7 @@ jobs:
       - name: Force v0.15.1 to release
         uses: actions/github-script@v7
         with:
+          github-token: ${{ secrets.FLVMMING_CODER_TOKEN || github.token }}
           script: |
             const owner = context.repo.owner;
             const repo = context.repo.repo;
@@ -48,7 +49,7 @@ jobs:
             });
             core.info("v0.15.1 updated to release.");
 
-  publish-v0-15-2-prerelease:
+  publish-v0-15-2-release:
     needs: ensure-v0-15-1-release
     runs-on: ubuntu-latest
     permissions:
@@ -57,13 +58,35 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Publish or update v0.15.2 pre-release
+      - name: Publish or update v0.15.2 release
         uses: softprops/action-gh-release@v2
         with:
+          token: ${{ secrets.FLVMMING_CODER_TOKEN || github.token }}
           tag_name: v0.15.2
           name: Contact Manager v0.15.2 (18)
-          prerelease: true
+          prerelease: false
           draft: false
+          make_latest: true
           body_path: versions/Contact Manager v0.15.2/README.md
           files: versions/Contact Manager v0.15.2/ContactManager-v0.15.2-debug.apk
           fail_on_unmatched_files: true
+
+      - name: Force v0.15.2 as latest
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.FLVMMING_CODER_TOKEN || github.token }}
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const rel = await github.rest.repos.getReleaseByTag({ owner, repo, tag: "v0.15.2" });
+            await github.rest.repos.updateRelease({
+              owner,
+              repo,
+              release_id: rel.data.id,
+              tag_name: "v0.15.2",
+              name: rel.data.name || "Contact Manager v0.15.2 (18)",
+              draft: false,
+              prerelease: false,
+              make_latest: "true"
+            });
+            core.info("v0.15.2 set as latest release.");

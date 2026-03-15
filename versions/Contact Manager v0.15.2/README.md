@@ -1,4 +1,4 @@
-﻿# Contact Manager v0.15.2 (PRE-RELEASE)
+﻿# Contact Manager v0.15.2 (RELEASE)
 
 Причина обновления:
 - в 0.15.1 выбор цвета аватара был доступен в обычном режиме редактирования;
@@ -33,3 +33,4 @@
 
 APK:
 - `ContactManager-v0.15.2-debug.apk`
+

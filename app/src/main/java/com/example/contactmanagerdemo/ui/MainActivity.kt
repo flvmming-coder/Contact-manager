@@ -3,6 +3,7 @@ package com.example.contactmanagerdemo.ui
 import android.Manifest
 import android.app.DatePickerDialog
 import android.content.Context
+import android.app.DownloadManager
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.database.Cursor
@@ -13,6 +14,7 @@ import android.net.NetworkCapabilities
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Environment
 import android.os.Handler
 import android.os.Looper
 import android.text.Editable
@@ -25,6 +27,7 @@ import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.View
+import android.view.ViewGroup
 import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.EditText
@@ -69,6 +72,9 @@ class MainActivity : AppCompatActivity() {
     private lateinit var inputSearch: EditText
     private lateinit var groupContainer: LinearLayout
     private lateinit var textEmpty: TextView
+    private lateinit var selectionActionsBar: LinearLayout
+    private lateinit var textSelectionCount: TextView
+    private val selectedContactIds = linkedSetOf<Long>()
 
     private var allContacts: MutableList<Contact> = mutableListOf()
     private lateinit var filterGroupCodes: List<String>
@@ -166,14 +172,23 @@ class MainActivity : AppCompatActivity() {
             inputSearch = findViewById(R.id.inputSearch)
             groupContainer = findViewById(R.id.groupContainer)
             textEmpty = findViewById(R.id.textEmpty)
+            selectionActionsBar = findViewById(R.id.selectionActionsBar)
+            textSelectionCount = findViewById(R.id.textSelectionCount)
 
             val recyclerView = findViewById<RecyclerView>(R.id.recyclerContacts)
             recyclerView.layoutManager = LinearLayoutManager(this)
 
             adapter = ContactAdapter(
                 onEdit = { contact -> showContactDialog(contact) },
+                onSelectStarted = { contact -> beginSelectionMode(contact) },
+                onSelectionToggle = { contact -> toggleContactSelection(contact) },
+                isSelectionMode = { isSelectionModeActive() },
             )
             recyclerView.adapter = adapter
+
+            findViewById<Button>(R.id.btnSelectionGroup).setOnClickListener { showBulkAssignGroupDialog() }
+            findViewById<Button>(R.id.btnSelectionDelete).setOnClickListener { showBulkDeleteDialog() }
+            findViewById<Button>(R.id.btnSelectionCancel).setOnClickListener { clearSelectionMode() }
 
             setupFilterGroups()
 
@@ -246,6 +261,8 @@ class MainActivity : AppCompatActivity() {
 
     private fun renderContacts() {
         val query = inputSearch.text.toString().trim().lowercase(Locale.getDefault())
+        val allIds = allContacts.map { it.id }.toSet()
+        selectedContactIds.removeAll { it !in allIds }
 
         val list = allContacts
             .filter { selectedGroupCode == ContactPrefsStorage.GROUP_ALL || it.group == selectedGroupCode }
@@ -258,6 +275,8 @@ class MainActivity : AppCompatActivity() {
             .sortedWith(compareBy<Contact> { it.name.lowercase(Locale.getDefault()) }.thenBy { it.lastName.orEmpty().lowercase(Locale.getDefault()) })
 
         adapter.submitList(list)
+        adapter.setSelectedIds(selectedContactIds)
+        updateSelectionUi()
         AppEventLogger.info("UI", "Rendered contacts: ${list.size}, group=$selectedGroupCode, query='$query'")
         textEmpty.visibility = if (list.isEmpty()) View.VISIBLE else View.GONE
     }
@@ -283,10 +302,102 @@ class MainActivity : AppCompatActivity() {
         return (value * resources.displayMetrics.density).toInt()
     }
 
+    private fun styleDialogButtons(dialog: AlertDialog) {
+        val buttonIds = listOf(
+            AlertDialog.BUTTON_POSITIVE,
+            AlertDialog.BUTTON_NEGATIVE,
+            AlertDialog.BUTTON_NEUTRAL,
+        )
+        buttonIds.forEach { id ->
+            val button = dialog.getButton(id) ?: return@forEach
+            button.background = ContextCompat.getDrawable(this, R.drawable.bg_button_gradient_rect)
+            button.setTextColor(0xFF0F172A.toInt())
+            button.isAllCaps = false
+            button.setPadding(dp(14), dp(8), dp(14), dp(8))
+            (button.layoutParams as? ViewGroup.MarginLayoutParams)?.let { lp ->
+                lp.marginStart = dp(6)
+                lp.marginEnd = dp(6)
+                button.layoutParams = lp
+            }
+        }
+    }
+
     private fun updateStats() {
         val total = allContacts.size
         val imported = allContacts.count { it.isImported }
         textStats.text = getString(R.string.stats_contacts, total, imported)
+    }
+
+    private fun isSelectionModeActive(): Boolean = selectedContactIds.isNotEmpty()
+
+    private fun beginSelectionMode(contact: Contact) {
+        selectedContactIds.add(contact.id)
+        AppEventLogger.info("UI", "Selection started for id=${contact.id}")
+        updateSelectionUi()
+        adapter.setSelectedIds(selectedContactIds)
+    }
+
+    private fun toggleContactSelection(contact: Contact) {
+        if (selectedContactIds.contains(contact.id)) {
+            selectedContactIds.remove(contact.id)
+        } else {
+            selectedContactIds.add(contact.id)
+        }
+        updateSelectionUi()
+        adapter.setSelectedIds(selectedContactIds)
+    }
+
+    private fun clearSelectionMode() {
+        if (selectedContactIds.isEmpty()) return
+        selectedContactIds.clear()
+        updateSelectionUi()
+        adapter.setSelectedIds(emptySet())
+    }
+
+    private fun updateSelectionUi() {
+        val count = selectedContactIds.size
+        selectionActionsBar.visibility = if (count > 0) View.VISIBLE else View.GONE
+        textSelectionCount.text = getString(R.string.selection_count, count)
+    }
+
+    private fun showBulkAssignGroupDialog() {
+        if (selectedContactIds.isEmpty()) return
+        val groupLabels = editGroupCodes.map { mapGroupLabel(it) }
+        val dialog = AlertDialog.Builder(this)
+            .setTitle(R.string.bulk_assign_group_title)
+            .setItems(groupLabels.toTypedArray()) { _, which ->
+                val targetGroup = editGroupCodes.getOrElse(which) { ContactPrefsStorage.GROUP_OTHER }
+                val updated = allContacts.map { contact ->
+                    if (selectedContactIds.contains(contact.id)) contact.copy(group = targetGroup) else contact
+                }
+                storage.saveAllContacts(updated)
+                AppEventLogger.info("DATA", "Bulk group assign for ${selectedContactIds.size} contacts to $targetGroup")
+                clearSelectionMode()
+                loadContactsAndRender()
+            }
+            .setNegativeButton(R.string.action_cancel, null)
+            .create()
+        dialog.show()
+        styleDialogButtons(dialog)
+    }
+
+    private fun showBulkDeleteDialog() {
+        if (selectedContactIds.isEmpty()) return
+        val idsToDelete = selectedContactIds.toSet()
+        val dialog = AlertDialog.Builder(this)
+            .setTitle(R.string.bulk_delete_title)
+            .setMessage(getString(R.string.bulk_delete_message, idsToDelete.size))
+            .setPositiveButton(R.string.action_delete) { _, _ ->
+                val updated = storage.getAllContacts().filterNot { idsToDelete.contains(it.id) }
+                storage.saveAllContacts(updated)
+                AppEventLogger.info("DATA", "Bulk delete count=${idsToDelete.size}")
+                clearSelectionMode()
+                loadContactsAndRender()
+            }
+            .setNegativeButton(R.string.action_cancel, null)
+            .create()
+        dialog.show()
+        styleDialogButtons(dialog)
     }
 
     private fun showContactDialog(contact: Contact?) {
@@ -506,6 +617,7 @@ class MainActivity : AppCompatActivity() {
             pendingAvatarPhotoResult = null
         }
         dialog.show()
+        styleDialogButtons(dialog)
     }
 
     private fun showAvatarColorPicker(
@@ -518,7 +630,7 @@ class MainActivity : AppCompatActivity() {
             getString(R.string.avatar_color_custom),
         )
 
-        AlertDialog.Builder(this)
+        val dialog = AlertDialog.Builder(this)
             .setTitle(R.string.action_pick_avatar_color)
             .setItems(options) { _, which ->
                 when (which) {
@@ -528,7 +640,9 @@ class MainActivity : AppCompatActivity() {
                 }
             }
             .setNegativeButton(R.string.action_cancel, null)
-            .show()
+            .create()
+        dialog.show()
+        styleDialogButtons(dialog)
     }
 
     private fun showPaletteColorPicker(
@@ -547,7 +661,7 @@ class MainActivity : AppCompatActivity() {
             ?.plus(1)
             ?: 0
 
-        AlertDialog.Builder(this)
+        val dialog = AlertDialog.Builder(this)
             .setTitle(R.string.avatar_color_from_palette)
             .setSingleChoiceItems(options.toTypedArray(), selectedIndex) { dialog, which ->
                 if (which == 0) {
@@ -558,7 +672,9 @@ class MainActivity : AppCompatActivity() {
                 dialog.dismiss()
             }
             .setNegativeButton(R.string.action_cancel, null)
-            .show()
+            .create()
+        dialog.show()
+        styleDialogButtons(dialog)
     }
 
     private fun showCustomColorPicker(
@@ -602,7 +718,7 @@ class MainActivity : AppCompatActivity() {
         seekBlue.setOnSeekBarChangeListener(listener)
         refreshPreview()
 
-        AlertDialog.Builder(this)
+        val dialog = AlertDialog.Builder(this)
             .setTitle(R.string.avatar_color_custom)
             .setView(dialogView)
             .setNegativeButton(R.string.action_cancel, null)
@@ -616,7 +732,9 @@ class MainActivity : AppCompatActivity() {
                 )
                 onSelected(hex)
             }
-            .show()
+            .create()
+        dialog.show()
+        styleDialogButtons(dialog)
     }
 
     private fun updateAvatarColorPreview(previewView: View, colorHex: String?, seed: Long) {
@@ -766,7 +884,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showDeleteDialog(contact: Contact) {
-        AlertDialog.Builder(this)
+        val dialog = AlertDialog.Builder(this)
             .setTitle(R.string.title_delete_contact)
             .setMessage(getString(R.string.message_delete_contact, listOfNotNull(contact.name, contact.lastName).joinToString(" ")))
             .setPositiveButton(R.string.action_delete) { _, _ ->
@@ -775,7 +893,9 @@ class MainActivity : AppCompatActivity() {
                 loadContactsAndRender()
             }
             .setNegativeButton(R.string.action_cancel, null)
-            .show()
+            .create()
+        dialog.show()
+        styleDialogButtons(dialog)
     }
 
     private fun mapGroupLabel(code: String): String {
@@ -789,25 +909,33 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showSettingsMenu() {
-        val options = arrayOf(
-            getString(R.string.settings_import_contacts),
-            getString(R.string.settings_export_vcf),
-            getString(R.string.settings_change_theme),
-            getString(R.string.settings_clear_all),
-        )
-
-        AlertDialog.Builder(this)
+        val dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_settings_panel, null)
+        val dialog = AlertDialog.Builder(this)
             .setTitle(R.string.settings_menu_title)
-            .setItems(options) { _, which ->
-                when (which) {
-                    0 -> showImportContactsConfirmDialog()
-                    1 -> startVcfExportFlow()
-                    2 -> showThemeSelectorDialog()
-                    3 -> confirmClearAllContacts()
-                }
-            }
+            .setView(dialogView)
             .setNegativeButton(R.string.action_cancel, null)
-            .show()
+            .create()
+
+        dialog.setOnShowListener {
+            dialogView.findViewById<Button>(R.id.btnSettingsImport).setOnClickListener {
+                dialog.dismiss()
+                showImportContactsConfirmDialog()
+            }
+            dialogView.findViewById<Button>(R.id.btnSettingsExport).setOnClickListener {
+                dialog.dismiss()
+                startVcfExportFlow()
+            }
+            dialogView.findViewById<Button>(R.id.btnSettingsTheme).setOnClickListener {
+                dialog.dismiss()
+                showThemeSelectorDialog()
+            }
+            dialogView.findViewById<Button>(R.id.btnSettingsClearAll).setOnClickListener {
+                dialog.dismiss()
+                confirmClearAllContacts()
+            }
+            styleDialogButtons(dialog)
+        }
+        dialog.show()
     }
 
     private fun showThemeSelectorDialog() {
@@ -817,7 +945,7 @@ class MainActivity : AppCompatActivity() {
         )
         val currentIndex = if (ThemeManager.isDarkThemeEnabled(this)) 1 else 0
 
-        AlertDialog.Builder(this)
+        val dialog = AlertDialog.Builder(this)
             .setTitle(R.string.settings_theme_title)
             .setSingleChoiceItems(options, currentIndex) { dialog, which ->
                 ThemeManager.setDarkThemeEnabled(this, which == 1)
@@ -827,20 +955,24 @@ class MainActivity : AppCompatActivity() {
                 recreate()
             }
             .setNegativeButton(R.string.action_cancel, null)
-            .show()
+            .create()
+        dialog.show()
+        styleDialogButtons(dialog)
     }
 
     private fun showGoogleModeDialog() {
         val connectedAccount = devPrefs.getString(KEY_NETWORK_ACCOUNT, null).orEmpty()
         val extra = if (connectedAccount.isBlank()) "" else "\n\n${getString(R.string.google_mode_connected, connectedAccount)}"
-        AlertDialog.Builder(this)
+        val dialog = AlertDialog.Builder(this)
             .setTitle(R.string.google_mode_title)
             .setMessage(getString(R.string.google_mode_message) + extra)
             .setPositiveButton(R.string.google_mode_connect) { _, _ ->
                 startGoogleSignIn()
             }
             .setNegativeButton(R.string.action_cancel, null)
-            .show()
+            .create()
+        dialog.show()
+        styleDialogButtons(dialog)
     }
 
     private fun startGoogleSignIn() {
@@ -875,7 +1007,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun confirmClearAllContacts() {
-        AlertDialog.Builder(this)
+        val dialog = AlertDialog.Builder(this)
             .setTitle(R.string.settings_clear_all_title)
             .setMessage(R.string.settings_clear_all_message)
             .setPositiveButton(R.string.action_delete) { _, _ ->
@@ -885,7 +1017,9 @@ class MainActivity : AppCompatActivity() {
                 Toast.makeText(this, R.string.settings_clear_all_done, Toast.LENGTH_SHORT).show()
             }
             .setNegativeButton(R.string.action_cancel, null)
-            .show()
+            .create()
+        dialog.show()
+        styleDialogButtons(dialog)
     }
 
     private fun buildVcfPayload(contacts: List<Contact>): String {
@@ -946,14 +1080,16 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showImportContactsConfirmDialog() {
-        AlertDialog.Builder(this)
+        val dialog = AlertDialog.Builder(this)
             .setTitle(R.string.import_contacts_title)
             .setMessage(R.string.import_contacts_message)
             .setPositiveButton(R.string.import_contacts_action) { _, _ ->
                 requestContactsPermissionAndImport()
             }
             .setNegativeButton(R.string.action_cancel, null)
-            .show()
+            .create()
+        dialog.show()
+        styleDialogButtons(dialog)
     }
 
     private fun requestContactsPermissionAndImport() {
@@ -1304,11 +1440,13 @@ class MainActivity : AppCompatActivity() {
         }
         btnDevelopersInfo.setOnClickListener { showDevelopersDialog() }
 
-        AlertDialog.Builder(this)
+        val dialog = AlertDialog.Builder(this)
             .setTitle(R.string.admin_panel_title)
             .setView(dialogView)
             .setNegativeButton(R.string.action_cancel, null)
-            .show()
+            .create()
+        dialog.show()
+        styleDialogButtons(dialog)
     }
 
     private fun isAvatarColorEditorEnabled(): Boolean {
@@ -1357,20 +1495,24 @@ class MainActivity : AppCompatActivity() {
             setPadding(dp(6), dp(6), dp(6), dp(6))
         }
 
-        AlertDialog.Builder(this)
+        val dialog = AlertDialog.Builder(this)
             .setTitle(R.string.developers_dialog_title)
             .setView(textView)
             .setPositiveButton(R.string.action_cancel, null)
-            .show()
+            .create()
+        dialog.show()
+        styleDialogButtons(dialog)
     }
 
     private fun showNoInternetDialog(onRetry: () -> Unit) {
-        AlertDialog.Builder(this)
+        val dialog = AlertDialog.Builder(this)
             .setTitle(R.string.admin_no_internet_title)
             .setMessage(R.string.admin_no_internet_message)
             .setPositiveButton(R.string.admin_action_try_again) { _, _ -> onRetry() }
             .setNegativeButton(R.string.action_cancel, null)
-            .show()
+            .create()
+        dialog.show()
+        styleDialogButtons(dialog)
     }
 
     private fun ensureNotificationsPermissionIfNeeded() {
@@ -1412,24 +1554,22 @@ class MainActivity : AppCompatActivity() {
                             getString(R.string.admin_update_available, latestNormalized)
                         }
                         AppEventLogger.info("ADMIN", "Update available: $latestNormalized")
-                        if (latest.htmlUrl.isNotBlank()) {
-                            AlertDialog.Builder(this)
-                                .setTitle(R.string.admin_panel_title)
-                                .setMessage(
-                                    if (latest.isPrerelease) {
-                                        getString(R.string.admin_update_available_prerelease, latestNormalized)
-                                    } else {
-                                        getString(R.string.admin_update_available, latestNormalized)
-                                    },
-                                )
-                                .setPositiveButton(R.string.admin_open_release_page) { _, _ ->
-                                    runCatching {
-                                        startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(latest.htmlUrl)))
-                                    }
-                                }
-                                .setNegativeButton(R.string.action_cancel, null)
-                                .show()
-                        }
+                        val dialog = AlertDialog.Builder(this)
+                            .setTitle(R.string.admin_panel_title)
+                            .setMessage(
+                                if (latest.isPrerelease) {
+                                    getString(R.string.admin_update_available_prerelease, latestNormalized)
+                                } else {
+                                    getString(R.string.admin_update_available, latestNormalized)
+                                },
+                            )
+                            .setPositiveButton(R.string.admin_action_download_update) { _, _ ->
+                                startUpdateDownload(latest.downloadUrl, latestNormalized)
+                            }
+                            .setNegativeButton(R.string.action_cancel, null)
+                            .create()
+                        dialog.show()
+                        styleDialogButtons(dialog)
                     } else {
                         textUpdateResult.text = getString(R.string.admin_update_latest, currentNormalized)
                         AppEventLogger.info("ADMIN", "No update found, current=$currentNormalized")
@@ -1440,6 +1580,36 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }.start()
+    }
+
+    private fun startUpdateDownload(downloadUrl: String?, versionName: String) {
+        val url = downloadUrl?.trim().orEmpty()
+        if (url.isBlank()) {
+            Toast.makeText(this, R.string.admin_update_download_unavailable, Toast.LENGTH_SHORT).show()
+            AppEventLogger.warn("UPDATE", "Download url is missing for version=$versionName")
+            return
+        }
+
+        val fileName = "ContactManager-$versionName.apk"
+        val request = DownloadManager.Request(Uri.parse(url))
+            .setTitle(getString(R.string.admin_download_title, versionName))
+            .setDescription(getString(R.string.admin_download_description))
+            .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+            .setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, fileName)
+            .setMimeType("application/vnd.android.package-archive")
+            .setAllowedOverMetered(true)
+            .setAllowedOverRoaming(true)
+
+        runCatching {
+            val manager = getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+            manager.enqueue(request)
+        }.onSuccess {
+            Toast.makeText(this, getString(R.string.admin_download_started, fileName), Toast.LENGTH_LONG).show()
+            AppEventLogger.info("UPDATE", "APK download started: $fileName")
+        }.onFailure { error ->
+            Toast.makeText(this, R.string.admin_download_failed, Toast.LENGTH_SHORT).show()
+            AppEventLogger.error("UPDATE", "APK download failed", error)
+        }
     }
 
     private fun getAppVersionName(): String {

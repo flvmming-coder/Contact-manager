@@ -13,6 +13,7 @@ object UpdateChecker {
     data class ReleaseInfo(
         val tagName: String,
         val htmlUrl: String,
+        val downloadUrl: String,
         val isPrerelease: Boolean,
     )
 
@@ -64,6 +65,7 @@ object UpdateChecker {
             val candidate = ReleaseInfo(
                 tagName = tagName,
                 htmlUrl = obj.optString("html_url", "").trim(),
+                downloadUrl = extractApkDownloadUrl(obj),
                 isPrerelease = obj.optBoolean("prerelease", false),
             )
 
@@ -82,6 +84,18 @@ object UpdateChecker {
             }
         }
         return best
+    }
+
+    private fun extractApkDownloadUrl(releaseObj: org.json.JSONObject): String {
+        val assets = releaseObj.optJSONArray("assets") ?: return ""
+        for (i in 0 until assets.length()) {
+            val asset = assets.optJSONObject(i) ?: continue
+            val url = asset.optString("browser_download_url", "").trim()
+            if (url.isBlank()) continue
+            val name = asset.optString("name", "").lowercase()
+            if (name.endsWith(".apk")) return url
+        }
+        return ""
     }
 
     private fun parseVersionParts(version: String): List<Int> {

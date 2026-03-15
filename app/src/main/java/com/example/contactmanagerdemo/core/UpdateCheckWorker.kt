@@ -35,6 +35,7 @@ class UpdateCheckWorker(
             UpdateNotificationHelper.showUpdateNotification(
                 context = applicationContext,
                 versionName = latestNormalized,
+                downloadUrl = latest.downloadUrl,
                 releaseUrl = latest.htmlUrl.ifBlank { RELEASES_PAGE_URL },
             )
             prefs.edit().putString(KEY_LAST_NOTIFIED_VERSION, latestNormalized).apply()

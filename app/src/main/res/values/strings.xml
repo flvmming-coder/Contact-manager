@@ -15,7 +15,10 @@
     <string name="action_add">\u0414\u043e\u0431\u0430\u0432\u0438\u0442\u044c</string>
     <string name="action_edit">\u0420\u0435\u0434\u0430\u043a\u0442\u0438\u0440\u043e\u0432\u0430\u0442\u044c</string>
     <string name="action_delete">\u0423\u0434\u0430\u043b\u0438\u0442\u044c</string>
+    <string name="action_delete_selected">\u0423\u0434\u0430\u043b\u0438\u0442\u044c \u0432\u044b\u0431\u0440\u0430\u043d\u043d\u044b\u0435</string>
+    <string name="action_assign_group">\u0412 \u0433\u0440\u0443\u043f\u043f\u0443</string>
     <string name="action_cancel">\u041e\u0442\u043c\u0435\u043d\u0430</string>
+    <string name="action_cancel_short">\u0421\u0431\u0440\u043e\u0441</string>
     <string name="action_save">\u0421\u043e\u0445\u0440\u0430\u043d\u0438\u0442\u044c</string>
     <string name="action_pick_date">\u041a\u0430\u043b\u0435\u043d\u0434\u0430\u0440\u044c</string>
     <string name="action_pick_avatar_color">\u0426\u0432\u0435\u0442 \u0430\u0432\u0430\u0442\u0430\u0440\u0430</string>
@@ -73,6 +76,12 @@
     <string name="admin_update_available_prerelease">\u0414\u043e\u0441\u0442\u0443\u043f\u0435\u043d \u043d\u043e\u0432\u044b\u0439 pre-release: %1$s</string>
     <string name="admin_update_error">\u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u043f\u0440\u043e\u0432\u0435\u0440\u0438\u0442\u044c \u043e\u0431\u043d\u043e\u0432\u043b\u0435\u043d\u0438\u044f</string>
     <string name="admin_open_release_page">\u041e\u0442\u043a\u0440\u044b\u0442\u044c GitHub</string>
+    <string name="admin_action_download_update">\u0421\u043a\u0430\u0447\u0430\u0442\u044c \u043e\u0431\u043d\u043e\u0432\u043b\u0435\u043d\u0438\u0435</string>
+    <string name="admin_update_download_unavailable">APK \u0434\u043b\u044f \u0441\u043a\u0430\u0447\u0438\u0432\u0430\u043d\u0438\u044f \u043d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d</string>
+    <string name="admin_download_title">\u0421\u043a\u0430\u0447\u0438\u0432\u0430\u043d\u0438\u0435 Contact Manager %1$s</string>
+    <string name="admin_download_description">\u041f\u043e\u0434\u0433\u043e\u0442\u043e\u0432\u043a\u0430 APK \u0434\u043b\u044f \u0443\u0441\u0442\u0430\u043d\u043e\u0432\u043a\u0438</string>
+    <string name="admin_download_started">\u0417\u0430\u0433\u0440\u0443\u0437\u043a\u0430 \u043d\u0430\u0447\u0430\u0442\u0430: %1$s</string>
+    <string name="admin_download_failed">\u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u0437\u0430\u043f\u0443\u0441\u0442\u0438\u0442\u044c \u0437\u0430\u0433\u0440\u0443\u0437\u043a\u0443</string>
     <string name="admin_no_internet_title">\u041d\u0435\u0442 \u0438\u043d\u0442\u0435\u0440\u043d\u0435\u0442\u0430</string>
     <string name="admin_no_internet_message">\u0412\u043a\u043b\u044e\u0447\u0438\u0442\u0435 \u0438\u043d\u0442\u0435\u0440\u043d\u0435\u0442 \u0438 \u043f\u043e\u043f\u0440\u043e\u0431\u0443\u0439\u0442\u0435 \u0441\u043d\u043e\u0432\u0430.</string>
     <string name="admin_action_try_again">\u041f\u043e\u043f\u0440\u043e\u0431\u043e\u0432\u0430\u0442\u044c \u0441\u043d\u043e\u0432\u0430</string>
@@ -81,6 +90,18 @@
     <string name="developers_line_kurenkov">Kurenkov E. E. — Back-end, A&amp;R, Kotlin dev</string>
     <string name="developers_line_kozin">Kozin S. V. — UI/UX designer, QA, product manager</string>
     <string name="developers_line_project">Project for NUST MISIS filiale of Novotroitsk</string>
+
+    <string name="selection_count_default">\u0412\u044b\u0431\u0440\u0430\u043d\u043e: 0</string>
+    <string name="selection_count">\u0412\u044b\u0431\u0440\u0430\u043d\u043e: %1$d</string>
+    <string name="bulk_assign_group_title">\u041d\u0430\u0437\u043d\u0430\u0447\u0438\u0442\u044c \u0433\u0440\u0443\u043f\u043f\u0443 \u0432\u044b\u0431\u0440\u0430\u043d\u043d\u044b\u043c</string>
+    <string name="bulk_delete_title">\u0423\u0434\u0430\u043b\u0435\u043d\u0438\u0435 \u0432\u044b\u0431\u0440\u0430\u043d\u043d\u044b\u0445</string>
+    <string name="bulk_delete_message">\u0423\u0434\u0430\u043b\u0438\u0442\u044c \u043a\u043e\u043d\u0442\u0430\u043a\u0442\u044b: %1$d?</string>
+
+    <string name="update_channel_name">\u041e\u0431\u043d\u043e\u0432\u043b\u0435\u043d\u0438\u044f \u043f\u0440\u0438\u043b\u043e\u0436\u0435\u043d\u0438\u044f</string>
+    <string name="update_channel_description">\u0423\u0432\u0435\u0434\u043e\u043c\u043b\u0435\u043d\u0438\u044f \u043e \u043d\u043e\u0432\u044b\u0445 \u0432\u0435\u0440\u0441\u0438\u044f\u0445 Contact Manager</string>
+    <string name="update_notification_title">\u0414\u043e\u0441\u0442\u0443\u043f\u043d\u043e \u043e\u0431\u043d\u043e\u0432\u043b\u0435\u043d\u0438\u0435 %1$s</string>
+    <string name="update_notification_text">\u041e\u0431\u043d\u043e\u0432\u0438\u0442\u0435 \u0434\u043e \u043d\u043e\u0432\u043e\u0439 \u0432\u0435\u0440\u0441\u0438\u0438, \u0447\u0442\u043e\u0431\u044b \u043f\u0440\u0438\u043b\u043e\u0436\u0435\u043d\u0438\u0435 \u0440\u0430\u0431\u043e\u0442\u0430\u043b\u043e \u043a\u043e\u0440\u0440\u0435\u043a\u0442\u043d\u043e</string>
+    <string name="update_notification_action_download">\u0421\u043a\u0430\u0447\u0430\u0442\u044c</string>
 
     <string name="import_contacts_title">\u0418\u043c\u043f\u043e\u0440\u0442 \u043a\u043e\u043d\u0442\u0430\u043a\u0442\u043e\u0432</string>
     <string name="import_contacts_message">\u0418\u043c\u043f\u043e\u0440\u0442\u0438\u0440\u043e\u0432\u0430\u0442\u044c \u043a\u043e\u043d\u0442\u0430\u043a\u0442\u044b \u0441 \u0443\u0441\u0442\u0440\u043e\u0439\u0441\u0442\u0432\u0430 \u0432 Contact Manager?</string>
