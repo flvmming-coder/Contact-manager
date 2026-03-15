@@ -15,10 +15,18 @@ jobs:
     permissions:
       contents: write
     steps:
+      - name: Verify release token
+        run: |
+          if [ -z "${{ secrets.FLVMMING_CODER_TOKEN }}" ]; then
+            echo "Missing repository secret FLVMMING_CODER_TOKEN."
+            echo "Add it in Settings -> Secrets and variables -> Actions."
+            exit 1
+          fi
+
       - name: Force v0.14.4 to release
         uses: actions/github-script@v7
         with:
-          github-token: ${{ secrets.FLVMMING_CODER_TOKEN || github.token }}
+          github-token: ${{ secrets.FLVMMING_CODER_TOKEN }}
           script: |
             const owner = context.repo.owner;
             const repo = context.repo.repo;
@@ -55,13 +63,21 @@ jobs:
     permissions:
       contents: write
     steps:
+      - name: Verify release token
+        run: |
+          if [ -z "${{ secrets.FLVMMING_CODER_TOKEN }}" ]; then
+            echo "Missing repository secret FLVMMING_CODER_TOKEN."
+            echo "Add it in Settings -> Secrets and variables -> Actions."
+            exit 1
+          fi
+
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Publish or update v0.15.1 release
         uses: softprops/action-gh-release@v2
         with:
-          token: ${{ secrets.FLVMMING_CODER_TOKEN || github.token }}
+          token: ${{ secrets.FLVMMING_CODER_TOKEN }}
           tag_name: v0.15.1
           name: Contact Manager v0.15.1 (17)
           prerelease: false
