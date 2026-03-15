@@ -1,4 +1,4 @@
-﻿# Contact Manager v0.15.1 (PRE-RELEASE)
+﻿# Contact Manager v0.15.1 (RELEASE)
 
 Причина обновления:
 - версия 0.14.4 стабильна, но требовалась доработка визуальной части аватаров;
@@ -22,3 +22,4 @@
 
 APK:
 - `ContactManager-v0.15.1-debug.apk`
+

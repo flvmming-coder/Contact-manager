@@ -18,7 +18,7 @@
         android:layout_marginTop="8dp"
         android:gravity="center_horizontal"
         android:text="#FFFFFF"
-        android:textColor="#1E293B"
+        android:textColor="@color/text_primary"
         android:textStyle="bold" />
 
     <TextView

@@ -16,7 +16,11 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.text.Editable
+import android.text.SpannableStringBuilder
+import android.text.Spanned
 import android.text.TextWatcher
+import android.text.method.LinkMovementMethod
+import android.text.style.ClickableSpan
 import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.MotionEvent
@@ -54,6 +58,7 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+import android.text.TextPaint
 
 class MainActivity : AppCompatActivity() {
 
@@ -297,13 +302,17 @@ class MainActivity : AppCompatActivity() {
         val btnPickAvatarColor = dialogView.findViewById<Button>(R.id.btnPickAvatarColor)
         val btnPickAvatarPhoto = dialogView.findViewById<Button>(R.id.btnPickAvatarPhoto)
         val btnClearAvatarPhoto = dialogView.findViewById<Button>(R.id.btnClearAvatarPhoto)
+        val layoutAvatarColorRow = dialogView.findViewById<View>(R.id.layoutAvatarColorRow)
         val imageAvatarPreview = dialogView.findViewById<ImageView>(R.id.imageAvatarPreview)
         val textAvatarPreview = dialogView.findViewById<TextView>(R.id.textAvatarPreview)
         val viewAvatarColorPreview = dialogView.findViewById<View>(R.id.viewAvatarColorPreview)
         val spinnerGroup = dialogView.findViewById<Spinner>(R.id.spinnerGroup)
-        var selectedAvatarColor = contact?.avatarColor
+        val colorEditorEnabled = isAvatarColorEditorEnabled()
+        var selectedAvatarColor = if (colorEditorEnabled) contact?.avatarColor else null
         var selectedAvatarPhotoUri = contact?.avatarPhotoUri
         val avatarSeed = contact?.id ?: System.currentTimeMillis()
+
+        layoutAvatarColorRow.visibility = if (colorEditorEnabled) View.VISIBLE else View.GONE
 
         setupBirthdayInputMask(inputBirthday)
         btnPickBirthday.setOnClickListener {
@@ -473,7 +482,7 @@ class MainActivity : AppCompatActivity() {
                     address = address,
                     birthday = birthday,
                     comment = comment,
-                    avatarColor = selectedAvatarColor,
+                    avatarColor = if (colorEditorEnabled) selectedAvatarColor else null,
                     avatarPhotoUri = selectedAvatarPhotoUri,
                     group = group,
                     isImported = contact?.isImported ?: false,
@@ -993,6 +1002,7 @@ class MainActivity : AppCompatActivity() {
             arrayOf(
                 ContactsContract.Contacts._ID,
                 ContactsContract.Contacts.DISPLAY_NAME_PRIMARY,
+                ContactsContract.Contacts.PHOTO_URI,
             ),
             null,
             null,
@@ -1003,8 +1013,9 @@ class MainActivity : AppCompatActivity() {
             while (cursor.moveToNext()) {
                 val contactId = cursor.getLongOrNull(ContactsContract.Contacts._ID) ?: continue
                 val displayName = cursor.getStringOrNull(ContactsContract.Contacts.DISPLAY_NAME_PRIMARY).orEmpty()
+                val photoUri = cursor.getStringOrNull(ContactsContract.Contacts.PHOTO_URI)
 
-                val details = loadDeviceContactDetails(contactId, displayName) ?: continue
+                val details = loadDeviceContactDetails(contactId, displayName, photoUri) ?: continue
                 val key = contactKey(details.name, details.lastName, details.phone)
                 if (!dedupKeys.add(key)) continue
 
@@ -1020,6 +1031,7 @@ class MainActivity : AppCompatActivity() {
                         birthday = details.birthday,
                         comment = details.comment,
                         avatarColor = null,
+                        avatarPhotoUri = details.avatarPhotoUri,
                         group = ContactPrefsStorage.GROUP_OTHER,
                         isImported = true,
                     ),
@@ -1034,7 +1046,11 @@ class MainActivity : AppCompatActivity() {
         return imported
     }
 
-    private fun loadDeviceContactDetails(contactId: Long, displayName: String): ImportedContactDetails? {
+    private fun loadDeviceContactDetails(
+        contactId: Long,
+        displayName: String,
+        photoUriFromContacts: String?,
+    ): ImportedContactDetails? {
         val phone = queryPhone(contactId).orEmpty()
         if (phone.isBlank()) return null
 
@@ -1049,6 +1065,7 @@ class MainActivity : AppCompatActivity() {
             address = queryAddress(contactId),
             birthday = normalizeImportedBirthday(queryBirthday(contactId)),
             comment = queryNote(contactId),
+            avatarPhotoUri = photoUriFromContacts?.trim()?.ifBlank { null } ?: queryPhotoUri(contactId),
         )
     }
 
@@ -1072,16 +1089,13 @@ class MainActivity : AppCompatActivity() {
             val (givenName, familyName, display) = result
             val baseName = when {
                 givenName.isNotBlank() -> givenName
-                display.isNotBlank() -> display.substringBefore(" ").trim()
-                else -> fallbackDisplayName.substringBefore(" ").trim()
+                display.isNotBlank() -> display
+                else -> fallbackDisplayName.trim()
             }
-            val baseLastName = familyName ?: parseLastNameFromDisplay(display.ifBlank { fallbackDisplayName })
-            return baseName to baseLastName
+            return baseName to familyName
         }
 
-        val fallbackName = fallbackDisplayName.substringBefore(" ").trim()
-        val fallbackLast = parseLastNameFromDisplay(fallbackDisplayName)
-        return fallbackName to fallbackLast
+        return fallbackDisplayName.trim() to null
     }
 
     private fun queryPhone(contactId: Long): String? {
@@ -1132,6 +1146,24 @@ class MainActivity : AppCompatActivity() {
                 ?.trim()
                 ?.ifBlank { null }
         }
+    }
+
+    private fun queryPhotoUri(contactId: Long): String? {
+        val cursor = contentResolver.query(
+            ContactsContract.Contacts.CONTENT_URI,
+            arrayOf(ContactsContract.Contacts.PHOTO_URI),
+            "${ContactsContract.Contacts._ID}=?",
+            arrayOf(contactId.toString()),
+            null,
+        ) ?: return null
+
+        cursor.use {
+            while (it.moveToNext()) {
+                val uri = it.getStringOrNull(ContactsContract.Contacts.PHOTO_URI).orEmpty().trim()
+                if (uri.isNotBlank()) return uri
+            }
+        }
+        return null
     }
 
     private fun queryBirthday(contactId: Long): String? {
@@ -1186,11 +1218,6 @@ class MainActivity : AppCompatActivity() {
         return normalized?.let { normalizeBirthday(it) }
     }
 
-    private fun parseLastNameFromDisplay(displayName: String): String? {
-        val parts = displayName.trim().split(" ").filter { it.isNotBlank() }
-        return parts.drop(1).joinToString(" ").ifBlank { null }
-    }
-
     private fun contactKey(name: String, lastName: String?, phone: String): String {
         val fullName = listOfNotNull(name, lastName).joinToString(" ").trim().lowercase(Locale.getDefault())
         val normalizedPhone = phone.filter { it.isDigit() || it == '+' }
@@ -1233,12 +1260,15 @@ class MainActivity : AppCompatActivity() {
     private fun showAdminPanel() {
         val dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_admin_panel, null)
         val switchLogs = dialogView.findViewById<SwitchCompat>(R.id.switchLogs)
+        val switchColorEditor = dialogView.findViewById<SwitchCompat>(R.id.switchColorEditor)
         val textVersionValue = dialogView.findViewById<TextView>(R.id.textVersionValue)
         val textLogPathValue = dialogView.findViewById<TextView>(R.id.textLogPathValue)
         val btnCheckUpdates = dialogView.findViewById<Button>(R.id.btnCheckUpdates)
+        val btnDevelopersInfo = dialogView.findViewById<Button>(R.id.btnDevelopersInfo)
         val textUpdateResult = dialogView.findViewById<TextView>(R.id.textUpdateResult)
 
         switchLogs.isChecked = AppEventLogger.isLoggingEnabled()
+        switchColorEditor.isChecked = isAvatarColorEditorEnabled()
         textVersionValue.text = getString(
             R.string.admin_version_value,
             getAppVersionName(),
@@ -1254,6 +1284,14 @@ class MainActivity : AppCompatActivity() {
                 Toast.LENGTH_SHORT,
             ).show()
         }
+        switchColorEditor.setOnCheckedChangeListener { _, enabled ->
+            setAvatarColorEditorEnabled(enabled)
+            Toast.makeText(
+                this,
+                if (enabled) getString(R.string.admin_color_editor_on) else getString(R.string.admin_color_editor_off),
+                Toast.LENGTH_SHORT,
+            ).show()
+        }
 
         btnCheckUpdates.setOnClickListener {
             if (!hasInternetConnection()) {
@@ -1264,11 +1302,65 @@ class MainActivity : AppCompatActivity() {
             AppEventLogger.info("ADMIN", "Checking updates from GitHub")
             checkForUpdatesFromGithub(textUpdateResult)
         }
+        btnDevelopersInfo.setOnClickListener { showDevelopersDialog() }
 
         AlertDialog.Builder(this)
             .setTitle(R.string.admin_panel_title)
             .setView(dialogView)
             .setNegativeButton(R.string.action_cancel, null)
+            .show()
+    }
+
+    private fun isAvatarColorEditorEnabled(): Boolean {
+        return devPrefs.getBoolean(KEY_AVATAR_COLOR_EDITOR_ENABLED, false)
+    }
+
+    private fun setAvatarColorEditorEnabled(enabled: Boolean) {
+        devPrefs.edit().putBoolean(KEY_AVATAR_COLOR_EDITOR_ENABLED, enabled).apply()
+    }
+
+    private fun showDevelopersDialog() {
+        val lineKurenkov = getString(R.string.developers_line_kurenkov)
+        val lineKozin = getString(R.string.developers_line_kozin)
+        val lineProject = getString(R.string.developers_line_project)
+
+        val builder = SpannableStringBuilder()
+        builder.append(getString(R.string.developers_dialog_title))
+        builder.append(":\n")
+
+        val kurStart = builder.length
+        builder.append(lineKurenkov)
+        builder.setSpan(
+            DeveloperLinkSpan("https://vk.com/lxrdx"),
+            kurStart,
+            kurStart + "Kurenkov E. E.".length,
+            Spanned.SPAN_EXCLUSIVE_EXCLUSIVE,
+        )
+        builder.append('\n')
+
+        val kozStart = builder.length
+        builder.append(lineKozin)
+        builder.setSpan(
+            DeveloperLinkSpan("https://vk.com/id225880613"),
+            kozStart,
+            kozStart + "Kozin S. V.".length,
+            Spanned.SPAN_EXCLUSIVE_EXCLUSIVE,
+        )
+        builder.append('\n')
+        builder.append(lineProject)
+
+        val textView = TextView(this).apply {
+            text = builder
+            movementMethod = LinkMovementMethod.getInstance()
+            setTextColor(ContextCompat.getColor(this@MainActivity, R.color.text_primary))
+            setLineSpacing(0f, 1.15f)
+            setPadding(dp(6), dp(6), dp(6), dp(6))
+        }
+
+        AlertDialog.Builder(this)
+            .setTitle(R.string.developers_dialog_title)
+            .setView(textView)
+            .setPositiveButton(R.string.action_cancel, null)
             .show()
     }
 
@@ -1366,14 +1458,14 @@ class MainActivity : AppCompatActivity() {
             text = getString(R.string.error_startup_title)
             textSize = 18f
             gravity = Gravity.CENTER
-            setTextColor(0xFF111827.toInt())
+            setTextColor(ContextCompat.getColor(this@MainActivity, R.color.text_primary))
         }
         val subtitle = TextView(this).apply {
             text = getString(R.string.error_startup_subtitle)
             textSize = 14f
             gravity = Gravity.CENTER
             setPadding(0, dp(10), 0, 0)
-            setTextColor(0xFF374151.toInt())
+            setTextColor(ContextCompat.getColor(this@MainActivity, R.color.text_secondary))
         }
         val retry = Button(this).apply {
             text = getString(R.string.action_retry)
@@ -1425,6 +1517,20 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private inner class DeveloperLinkSpan(private val url: String) : ClickableSpan() {
+        override fun onClick(widget: View) {
+            runCatching {
+                startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+            }
+        }
+
+        override fun updateDrawState(ds: TextPaint) {
+            super.updateDrawState(ds)
+            ds.color = ContextCompat.getColor(this@MainActivity, R.color.accent)
+            ds.isUnderlineText = true
+        }
+    }
+
     private data class ImportedContactDetails(
         val name: String,
         val lastName: String?,
@@ -1433,6 +1539,7 @@ class MainActivity : AppCompatActivity() {
         val address: String?,
         val birthday: String?,
         val comment: String?,
+        val avatarPhotoUri: String?,
     )
 
     companion object {
@@ -1441,5 +1548,6 @@ class MainActivity : AppCompatActivity() {
         private const val DEV_PREFS_NAME = "contact_manager_dev_settings"
         private const val KEY_NETWORK_MODE_ENABLED = "network_mode_enabled"
         private const val KEY_NETWORK_ACCOUNT = "network_mode_account"
+        private const val KEY_AVATAR_COLOR_EDITOR_ENABLED = "avatar_color_editor_enabled"
     }
 }

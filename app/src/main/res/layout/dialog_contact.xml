@@ -2,47 +2,63 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
+    android:background="@drawable/bg_dialog_surface"
     android:orientation="vertical"
-    android:padding="8dp">
+    android:padding="12dp">
 
     <EditText
         android:id="@+id/inputName"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:background="@drawable/bg_dialog_input"
         android:hint="@string/hint_name"
-        android:inputType="textPersonName" />
+        android:inputType="textPersonName"
+        android:textColor="@color/text_primary"
+        android:textColorHint="@color/text_secondary" />
 
     <EditText
         android:id="@+id/inputLastName"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="8dp"
+        android:background="@drawable/bg_dialog_input"
         android:hint="@string/hint_last_name"
-        android:inputType="textPersonName" />
+        android:inputType="textPersonName"
+        android:textColor="@color/text_primary"
+        android:textColorHint="@color/text_secondary" />
 
     <EditText
         android:id="@+id/inputPhone"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="8dp"
+        android:background="@drawable/bg_dialog_input"
         android:hint="@string/hint_phone"
-        android:inputType="phone" />
+        android:inputType="phone"
+        android:textColor="@color/text_primary"
+        android:textColorHint="@color/text_secondary" />
 
     <EditText
         android:id="@+id/inputEmail"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="8dp"
+        android:background="@drawable/bg_dialog_input"
         android:hint="@string/hint_email"
-        android:inputType="textEmailAddress" />
+        android:inputType="textEmailAddress"
+        android:textColor="@color/text_primary"
+        android:textColorHint="@color/text_secondary" />
 
     <EditText
         android:id="@+id/inputAddress"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="8dp"
+        android:background="@drawable/bg_dialog_input"
         android:hint="@string/hint_address"
-        android:inputType="textPostalAddress" />
+        android:inputType="textPostalAddress"
+        android:textColor="@color/text_primary"
+        android:textColorHint="@color/text_secondary" />
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -55,15 +71,21 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
+            android:background="@drawable/bg_dialog_input"
             android:hint="@string/hint_birthday"
-            android:inputType="number" />
+            android:inputType="number"
+            android:textColor="@color/text_primary"
+            android:textColorHint="@color/text_secondary" />
 
         <Button
             android:id="@+id/btnPickBirthday"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginStart="8dp"
-            android:text="@string/action_pick_date" />
+            android:background="@drawable/bg_button_gradient_rect"
+            android:text="@string/action_pick_date"
+            android:textColor="#0F172A"
+            android:textStyle="bold" />
     </LinearLayout>
 
     <EditText
@@ -71,11 +93,14 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="8dp"
+        android:background="@drawable/bg_dialog_input"
         android:gravity="top|start"
         android:hint="@string/hint_comment"
         android:inputType="textCapSentences|textMultiLine"
         android:maxLength="512"
-        android:minLines="3" />
+        android:minLines="3"
+        android:textColor="@color/text_primary"
+        android:textColorHint="@color/text_secondary" />
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -119,18 +144,25 @@
                 android:id="@+id/btnPickAvatarPhoto"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="@string/action_pick_avatar_photo" />
+                android:background="@drawable/bg_button_gradient_rect"
+                android:text="@string/action_pick_avatar_photo"
+                android:textColor="#0F172A"
+                android:textStyle="bold" />
 
             <Button
                 android:id="@+id/btnClearAvatarPhoto"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="6dp"
-                android:text="@string/action_clear_avatar_photo" />
+                android:background="@drawable/bg_button_gradient_rect"
+                android:text="@string/action_clear_avatar_photo"
+                android:textColor="#0F172A"
+                android:textStyle="bold" />
         </LinearLayout>
     </LinearLayout>
 
     <LinearLayout
+        android:id="@+id/layoutAvatarColorRow"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="8dp"
@@ -142,7 +174,10 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="@string/action_pick_avatar_color" />
+            android:background="@drawable/bg_button_gradient_rect"
+            android:text="@string/action_pick_avatar_color"
+            android:textColor="#0F172A"
+            android:textStyle="bold" />
 
         <View
             android:id="@+id/viewAvatarColorPreview"
@@ -156,6 +191,8 @@
         android:id="@+id/spinnerGroup"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="8dp" />
+        android:layout_marginTop="8dp"
+        android:background="@drawable/bg_dialog_input"
+        android:popupBackground="@drawable/bg_dialog_surface" />
 
 </LinearLayout>
