@@ -1,4 +1,4 @@
-﻿# Contact Manager v0.14.3 (PRE-RELEASE)
+﻿# Contact Manager v0.14.3 (RELEASE)
 
 Цель обновления:
 - добавить уведомление о новых обновлениях,

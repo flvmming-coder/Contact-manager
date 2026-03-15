@@ -21,16 +21,17 @@ class ContactPrefsStorage(context: Context) {
 
     fun getAllContacts(): MutableList<Contact> {
         val raw = prefs.getString(KEY_CONTACTS, null)
-        val list = if (raw.isNullOrBlank()) {
-            mutableListOf()
-        } else {
-            parseContactsSafely(raw)
+        if (raw == null) {
+            val seed = seedContacts()
+            saveAllContacts(seed)
+            return seed.toMutableList()
         }
 
-        if (list.isEmpty()) {
-            if (!raw.isNullOrBlank()) {
-                AppEventLogger.warn("DATA", "Stored contacts were empty/invalid, fallback to seed contacts")
-            }
+        if (raw.isBlank()) return mutableListOf()
+
+        val list = parseContactsSafely(raw)
+        if (list.isEmpty() && raw.trim() != "[]") {
+            AppEventLogger.warn("DATA", "Stored contacts were empty/invalid, fallback to seed contacts")
             val seed = seedContacts()
             saveAllContacts(seed)
             return seed.toMutableList()
@@ -53,6 +54,7 @@ class ContactPrefsStorage(context: Context) {
                     put("birthday", contact.birthday)
                     put("comment", contact.comment)
                     put("avatarColor", contact.avatarColor)
+                    put("avatarPhotoUri", contact.avatarPhotoUri)
                     put("group", contact.group)
                     put("isImported", contact.isImported)
                 },
@@ -75,6 +77,10 @@ class ContactPrefsStorage(context: Context) {
     fun delete(contactId: Long) {
         val items = getAllContacts().filterNot { it.id == contactId }
         saveAllContacts(items)
+    }
+
+    fun clearAll() {
+        prefs.edit().putString(KEY_CONTACTS, "[]").apply()
     }
 
     private fun parseContactsSafely(raw: String): MutableList<Contact> {
@@ -115,6 +121,7 @@ class ContactPrefsStorage(context: Context) {
                         birthday = repairMojibake(obj.optString("birthday")).trim().ifBlank { null },
                         comment = repairMojibake(obj.optString("comment")).trim().ifBlank { null },
                         avatarColor = repairMojibake(obj.optString("avatarColor")).trim().ifBlank { null },
+                        avatarPhotoUri = repairMojibake(obj.optString("avatarPhotoUri")).trim().ifBlank { null },
                         group = normalizeGroup(rawGroup),
                         isImported = obj.optBoolean("isImported", obj.optBoolean("imported", false)),
                     ),

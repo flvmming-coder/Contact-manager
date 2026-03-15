@@ -2,9 +2,11 @@ package com.example.contactmanagerdemo.ui
 
 import android.Manifest
 import android.app.DatePickerDialog
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.database.Cursor
+import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
@@ -23,7 +25,9 @@ import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.EditText
 import android.widget.ImageButton
+import android.widget.ImageView
 import android.widget.LinearLayout
+import android.widget.SeekBar
 import android.widget.Spinner
 import android.widget.TextView
 import android.widget.Toast
@@ -36,11 +40,15 @@ import androidx.core.widget.doAfterTextChanged
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import android.provider.ContactsContract
+import com.google.android.gms.auth.api.signin.GoogleSignIn
+import com.google.android.gms.auth.api.signin.GoogleSignInOptions
+import com.google.android.gms.common.api.ApiException
 import com.example.contactmanagerdemo.R
 import com.example.contactmanagerdemo.core.AppEventLogger
 import com.example.contactmanagerdemo.core.UpdateChecker
 import com.example.contactmanagerdemo.data.Contact
 import com.example.contactmanagerdemo.data.ContactPrefsStorage
+import java.io.OutputStreamWriter
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -63,6 +71,9 @@ class MainActivity : AppCompatActivity() {
     private val groupViews: MutableMap<String, TextView> = linkedMapOf()
     private val mainHandler = Handler(Looper.getMainLooper())
     private var adminHoldTriggered = false
+    private val devPrefs by lazy { getSharedPreferences(DEV_PREFS_NAME, Context.MODE_PRIVATE) }
+    private var pendingAvatarPhotoResult: ((String?) -> Unit)? = null
+    private var pendingVcfPayload: String? = null
     private val adminHoldRunnable = Runnable {
         adminHoldTriggered = true
         AppEventLogger.info("ADMIN", "Developer panel requested by long press")
@@ -82,6 +93,59 @@ class MainActivity : AppCompatActivity() {
             if (!granted) {
                 AppEventLogger.warn("UPDATE", "Notifications permission denied")
             }
+        }
+    private val pickAvatarPhotoLauncher =
+        registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+            if (uri == null) return@registerForActivityResult
+            runCatching {
+                contentResolver.takePersistableUriPermission(
+                    uri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION,
+                )
+            }
+            pendingAvatarPhotoResult?.invoke(uri.toString())
+            pendingAvatarPhotoResult = null
+        }
+    private val exportVcfLauncher =
+        registerForActivityResult(ActivityResultContracts.CreateDocument("text/x-vcard")) { uri ->
+            val payload = pendingVcfPayload
+            pendingVcfPayload = null
+            if (uri == null || payload.isNullOrBlank()) return@registerForActivityResult
+
+            val success = runCatching {
+                contentResolver.openOutputStream(uri)?.use { output ->
+                    OutputStreamWriter(output, Charsets.UTF_8).use { writer ->
+                        writer.write(payload)
+                    }
+                } ?: error("Unable to open output stream")
+            }.isSuccess
+
+            if (success) {
+                Toast.makeText(this, R.string.settings_export_done, Toast.LENGTH_SHORT).show()
+                AppEventLogger.info("SETTINGS", "VCF exported: $uri")
+            } else {
+                Toast.makeText(this, R.string.settings_export_error, Toast.LENGTH_SHORT).show()
+                AppEventLogger.warn("SETTINGS", "VCF export failed")
+            }
+        }
+    private val googleSignInLauncher =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            val data = result.data
+            val task = GoogleSignIn.getSignedInAccountFromIntent(data)
+            runCatching { task.getResult(ApiException::class.java) }
+                .onSuccess { account ->
+                    val email = account.email.orEmpty()
+                    devPrefs.edit()
+                        .putBoolean(KEY_NETWORK_MODE_ENABLED, true)
+                        .putString(KEY_NETWORK_ACCOUNT, email)
+                        .apply()
+                    Toast.makeText(this, getString(R.string.google_mode_connected, email), Toast.LENGTH_SHORT).show()
+                    AppEventLogger.info("GOOGLE", "Network mode enabled for account=$email")
+                }
+                .onFailure { error ->
+                    Toast.makeText(this, R.string.google_mode_failed, Toast.LENGTH_SHORT).show()
+                    AppEventLogger.error("GOOGLE", "Google sign-in failed", error)
+                }
         }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -111,9 +175,8 @@ class MainActivity : AppCompatActivity() {
                 AppEventLogger.info("UI", "Add contact button clicked")
                 showContactDialog(null)
             }
-            findViewById<ImageButton>(R.id.btnImportDeviceContacts).setOnClickListener {
-                showImportContactsConfirmDialog()
-            }
+            findViewById<ImageButton>(R.id.btnSettings).setOnClickListener { showSettingsMenu() }
+            findViewById<ImageButton>(R.id.btnGoogleMode).setOnClickListener { showGoogleModeDialog() }
             setupAdminPanelLongPress()
             inputSearch.doAfterTextChanged { renderContacts() }
             ensureNotificationsPermissionIfNeeded()
@@ -231,9 +294,14 @@ class MainActivity : AppCompatActivity() {
         val inputComment = dialogView.findViewById<EditText>(R.id.inputComment)
         val btnPickBirthday = dialogView.findViewById<Button>(R.id.btnPickBirthday)
         val btnPickAvatarColor = dialogView.findViewById<Button>(R.id.btnPickAvatarColor)
+        val btnPickAvatarPhoto = dialogView.findViewById<Button>(R.id.btnPickAvatarPhoto)
+        val btnClearAvatarPhoto = dialogView.findViewById<Button>(R.id.btnClearAvatarPhoto)
+        val imageAvatarPreview = dialogView.findViewById<ImageView>(R.id.imageAvatarPreview)
+        val textAvatarPreview = dialogView.findViewById<TextView>(R.id.textAvatarPreview)
         val viewAvatarColorPreview = dialogView.findViewById<View>(R.id.viewAvatarColorPreview)
         val spinnerGroup = dialogView.findViewById<Spinner>(R.id.spinnerGroup)
         var selectedAvatarColor = contact?.avatarColor
+        var selectedAvatarPhotoUri = contact?.avatarPhotoUri
         val avatarSeed = contact?.id ?: System.currentTimeMillis()
 
         setupBirthdayInputMask(inputBirthday)
@@ -244,7 +312,66 @@ class MainActivity : AppCompatActivity() {
             showAvatarColorPicker(selectedAvatarColor) { selectedHex ->
                 selectedAvatarColor = selectedHex
                 updateAvatarColorPreview(viewAvatarColorPreview, selectedAvatarColor, avatarSeed)
+                updateAvatarDialogPreview(
+                    imageAvatarPreview = imageAvatarPreview,
+                    textAvatarPreview = textAvatarPreview,
+                    avatarUri = selectedAvatarPhotoUri,
+                    name = inputName.text.toString(),
+                    lastName = inputLastName.text.toString(),
+                    colorHex = selectedAvatarColor,
+                    avatarSeed = avatarSeed,
+                )
             }
+        }
+        viewAvatarColorPreview.setOnClickListener { btnPickAvatarColor.performClick() }
+        btnPickAvatarPhoto.setOnClickListener {
+            pendingAvatarPhotoResult = { uriString ->
+                selectedAvatarPhotoUri = uriString
+                updateAvatarDialogPreview(
+                    imageAvatarPreview = imageAvatarPreview,
+                    textAvatarPreview = textAvatarPreview,
+                    avatarUri = selectedAvatarPhotoUri,
+                    name = inputName.text.toString(),
+                    lastName = inputLastName.text.toString(),
+                    colorHex = selectedAvatarColor,
+                    avatarSeed = avatarSeed,
+                )
+            }
+            pickAvatarPhotoLauncher.launch(arrayOf("image/*"))
+        }
+        btnClearAvatarPhoto.setOnClickListener {
+            selectedAvatarPhotoUri = null
+            updateAvatarDialogPreview(
+                imageAvatarPreview = imageAvatarPreview,
+                textAvatarPreview = textAvatarPreview,
+                avatarUri = null,
+                name = inputName.text.toString(),
+                lastName = inputLastName.text.toString(),
+                colorHex = selectedAvatarColor,
+                avatarSeed = avatarSeed,
+            )
+        }
+        inputName.doAfterTextChanged {
+            updateAvatarDialogPreview(
+                imageAvatarPreview = imageAvatarPreview,
+                textAvatarPreview = textAvatarPreview,
+                avatarUri = selectedAvatarPhotoUri,
+                name = inputName.text.toString(),
+                lastName = inputLastName.text.toString(),
+                colorHex = selectedAvatarColor,
+                avatarSeed = avatarSeed,
+            )
+        }
+        inputLastName.doAfterTextChanged {
+            updateAvatarDialogPreview(
+                imageAvatarPreview = imageAvatarPreview,
+                textAvatarPreview = textAvatarPreview,
+                avatarUri = selectedAvatarPhotoUri,
+                name = inputName.text.toString(),
+                lastName = inputLastName.text.toString(),
+                colorHex = selectedAvatarColor,
+                avatarSeed = avatarSeed,
+            )
         }
         updateAvatarColorPreview(viewAvatarColorPreview, selectedAvatarColor, avatarSeed)
 
@@ -262,6 +389,15 @@ class MainActivity : AppCompatActivity() {
             val index = editGroupCodes.indexOf(contact.group).takeIf { it >= 0 } ?: 0
             spinnerGroup.setSelection(index)
         }
+        updateAvatarDialogPreview(
+            imageAvatarPreview = imageAvatarPreview,
+            textAvatarPreview = textAvatarPreview,
+            avatarUri = selectedAvatarPhotoUri,
+            name = inputName.text.toString(),
+            lastName = inputLastName.text.toString(),
+            colorHex = selectedAvatarColor,
+            avatarSeed = avatarSeed,
+        )
 
         val title = if (contact == null) getString(R.string.title_add_contact) else getString(R.string.title_edit_contact)
 
@@ -337,6 +473,7 @@ class MainActivity : AppCompatActivity() {
                     birthday = birthday,
                     comment = comment,
                     avatarColor = selectedAvatarColor,
+                    avatarPhotoUri = selectedAvatarPhotoUri,
                     group = group,
                     isImported = contact?.isImported ?: false,
                 )
@@ -355,10 +492,36 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+        dialog.setOnDismissListener {
+            pendingAvatarPhotoResult = null
+        }
         dialog.show()
     }
 
     private fun showAvatarColorPicker(
+        currentColorHex: String?,
+        onSelected: (String?) -> Unit,
+    ) {
+        val options = arrayOf(
+            getString(R.string.avatar_color_random),
+            getString(R.string.avatar_color_from_palette),
+            getString(R.string.avatar_color_custom),
+        )
+
+        AlertDialog.Builder(this)
+            .setTitle(R.string.action_pick_avatar_color)
+            .setItems(options) { _, which ->
+                when (which) {
+                    0 -> onSelected(null)
+                    1 -> showPaletteColorPicker(currentColorHex, onSelected)
+                    2 -> showCustomColorPicker(currentColorHex, onSelected)
+                }
+            }
+            .setNegativeButton(R.string.action_cancel, null)
+            .show()
+    }
+
+    private fun showPaletteColorPicker(
         currentColorHex: String?,
         onSelected: (String?) -> Unit,
     ) {
@@ -375,7 +538,7 @@ class MainActivity : AppCompatActivity() {
             ?: 0
 
         AlertDialog.Builder(this)
-            .setTitle(R.string.action_pick_avatar_color)
+            .setTitle(R.string.avatar_color_from_palette)
             .setSingleChoiceItems(options.toTypedArray(), selectedIndex) { dialog, which ->
                 if (which == 0) {
                     onSelected(null)
@@ -388,6 +551,64 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
 
+    private fun showCustomColorPicker(
+        currentColorHex: String?,
+        onSelected: (String?) -> Unit,
+    ) {
+        val dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_custom_color, null)
+        val preview = dialogView.findViewById<View>(R.id.viewColorPreview)
+        val textHex = dialogView.findViewById<TextView>(R.id.textColorHex)
+        val seekRed = dialogView.findViewById<SeekBar>(R.id.seekRed)
+        val seekGreen = dialogView.findViewById<SeekBar>(R.id.seekGreen)
+        val seekBlue = dialogView.findViewById<SeekBar>(R.id.seekBlue)
+
+        val initialColor = runCatching {
+            Color.parseColor(AvatarColorPalette.normalizeHex(currentColorHex) ?: "#64748B")
+        }.getOrDefault(Color.parseColor("#64748B"))
+
+        seekRed.progress = Color.red(initialColor)
+        seekGreen.progress = Color.green(initialColor)
+        seekBlue.progress = Color.blue(initialColor)
+
+        fun refreshPreview() {
+            val color = Color.rgb(seekRed.progress, seekGreen.progress, seekBlue.progress)
+            val hex = String.format(Locale.US, "#%02X%02X%02X", Color.red(color), Color.green(color), Color.blue(color))
+            textHex.text = hex
+            preview.background = GradientDrawable().apply {
+                shape = GradientDrawable.RECTANGLE
+                cornerRadius = dp(8).toFloat()
+                setColor(color)
+                setStroke(dp(1), 0xFFE2E8F0.toInt())
+            }
+        }
+
+        val listener = object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) = refreshPreview()
+            override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
+            override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
+        }
+        seekRed.setOnSeekBarChangeListener(listener)
+        seekGreen.setOnSeekBarChangeListener(listener)
+        seekBlue.setOnSeekBarChangeListener(listener)
+        refreshPreview()
+
+        AlertDialog.Builder(this)
+            .setTitle(R.string.avatar_color_custom)
+            .setView(dialogView)
+            .setNegativeButton(R.string.action_cancel, null)
+            .setPositiveButton(R.string.action_save) { _, _ ->
+                val hex = String.format(
+                    Locale.US,
+                    "#%02X%02X%02X",
+                    seekRed.progress,
+                    seekGreen.progress,
+                    seekBlue.progress,
+                )
+                onSelected(hex)
+            }
+            .show()
+    }
+
     private fun updateAvatarColorPreview(previewView: View, colorHex: String?, seed: Long) {
         val colorInt = AvatarColorPalette.resolveColorInt(colorHex, seed)
         previewView.background = GradientDrawable().apply {
@@ -395,6 +616,52 @@ class MainActivity : AppCompatActivity() {
             setColor(colorInt)
             setStroke(dp(1), 0xFFE2E8F0.toInt())
         }
+    }
+
+    private fun updateAvatarDialogPreview(
+        imageAvatarPreview: ImageView,
+        textAvatarPreview: TextView,
+        avatarUri: String?,
+        name: String,
+        lastName: String,
+        colorHex: String?,
+        avatarSeed: Long,
+    ) {
+        val normalizedUri = avatarUri?.trim().orEmpty()
+        if (normalizedUri.isNotEmpty()) {
+            val shown = runCatching {
+                imageAvatarPreview.setImageURI(Uri.parse(normalizedUri))
+                true
+            }.getOrElse { false }
+            if (shown) {
+                imageAvatarPreview.visibility = View.VISIBLE
+                textAvatarPreview.visibility = View.GONE
+                return
+            }
+        }
+
+        imageAvatarPreview.visibility = View.GONE
+        textAvatarPreview.visibility = View.VISIBLE
+        textAvatarPreview.text = buildInitials(name, lastName)
+        textAvatarPreview.background = GradientDrawable().apply {
+            shape = GradientDrawable.RECTANGLE
+            setColor(AvatarColorPalette.resolveColorInt(colorHex, avatarSeed))
+        }
+    }
+
+    private fun buildInitials(name: String, lastName: String): String {
+        val firstName = name.trim()
+        val secondName = lastName.trim()
+        if (firstName.isBlank() && secondName.isBlank()) return "?"
+
+        if (secondName.isNotBlank()) {
+            val first = firstName.firstOrNull { !it.isWhitespace() }?.toString().orEmpty()
+            val second = secondName.firstOrNull { !it.isWhitespace() }?.toString().orEmpty()
+            return (first + second).ifBlank { "?" }.uppercase(Locale.getDefault())
+        }
+
+        val chars = firstName.filter { !it.isWhitespace() }.take(2)
+        return if (chars.isBlank()) "?" else chars.uppercase(Locale.getDefault())
     }
 
     private fun setupBirthdayInputMask(inputBirthday: EditText) {
@@ -508,6 +775,118 @@ class MainActivity : AppCompatActivity() {
             ContactPrefsStorage.GROUP_WORK -> getString(R.string.group_work)
             else -> getString(R.string.group_other)
         }
+    }
+
+    private fun showSettingsMenu() {
+        val options = arrayOf(
+            getString(R.string.settings_import_contacts),
+            getString(R.string.settings_export_vcf),
+            getString(R.string.settings_clear_all),
+        )
+
+        AlertDialog.Builder(this)
+            .setTitle(R.string.settings_menu_title)
+            .setItems(options) { _, which ->
+                when (which) {
+                    0 -> showImportContactsConfirmDialog()
+                    1 -> startVcfExportFlow()
+                    2 -> confirmClearAllContacts()
+                }
+            }
+            .setNegativeButton(R.string.action_cancel, null)
+            .show()
+    }
+
+    private fun showGoogleModeDialog() {
+        val connectedAccount = devPrefs.getString(KEY_NETWORK_ACCOUNT, null).orEmpty()
+        val extra = if (connectedAccount.isBlank()) "" else "\n\n${getString(R.string.google_mode_connected, connectedAccount)}"
+        AlertDialog.Builder(this)
+            .setTitle(R.string.google_mode_title)
+            .setMessage(getString(R.string.google_mode_message) + extra)
+            .setPositiveButton(R.string.google_mode_connect) { _, _ ->
+                startGoogleSignIn()
+            }
+            .setNegativeButton(R.string.action_cancel, null)
+            .show()
+    }
+
+    private fun startGoogleSignIn() {
+        if (!hasInternetConnection()) {
+            showNoInternetDialog { startGoogleSignIn() }
+            return
+        }
+
+        val options = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+            .requestEmail()
+            .build()
+        val client = GoogleSignIn.getClient(this, options)
+        googleSignInLauncher.launch(client.signInIntent)
+    }
+
+    private fun startVcfExportFlow() {
+        val contacts = storage.getAllContacts()
+        if (contacts.isEmpty()) {
+            Toast.makeText(this, R.string.empty_contacts, Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val payload = buildVcfPayload(contacts)
+        if (payload.isBlank()) {
+            Toast.makeText(this, R.string.settings_export_error, Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        pendingVcfPayload = payload
+        val fileName = "ContactManager-${SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date())}.vcf"
+        exportVcfLauncher.launch(fileName)
+    }
+
+    private fun confirmClearAllContacts() {
+        AlertDialog.Builder(this)
+            .setTitle(R.string.settings_clear_all_title)
+            .setMessage(R.string.settings_clear_all_message)
+            .setPositiveButton(R.string.action_delete) { _, _ ->
+                storage.clearAll()
+                loadContactsAndRender()
+                AppEventLogger.info("SETTINGS", "All contacts removed by user")
+                Toast.makeText(this, R.string.settings_clear_all_done, Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton(R.string.action_cancel, null)
+            .show()
+    }
+
+    private fun buildVcfPayload(contacts: List<Contact>): String {
+        val builder = StringBuilder()
+        contacts.forEach { contact ->
+            val fullName = listOfNotNull(contact.name, contact.lastName).joinToString(" ").trim()
+            builder.appendLine("BEGIN:VCARD")
+            builder.appendLine("VERSION:3.0")
+            builder.appendLine("N:${escapeVcf(contact.lastName.orEmpty())};${escapeVcf(contact.name)};;;")
+            builder.appendLine("FN:${escapeVcf(fullName.ifBlank { contact.name })}")
+            builder.appendLine("TEL;TYPE=CELL:${escapeVcf(contact.phone)}")
+            contact.email?.takeIf { it.isNotBlank() }?.let { builder.appendLine("EMAIL;TYPE=INTERNET:${escapeVcf(it)}") }
+            contact.address?.takeIf { it.isNotBlank() }?.let { builder.appendLine("ADR;TYPE=HOME:;;${escapeVcf(it)};;;;") }
+            contact.comment?.takeIf { it.isNotBlank() }?.let { builder.appendLine("NOTE:${escapeVcf(it)}") }
+            toVcfBirthday(contact.birthday)?.let { builder.appendLine("BDAY:$it") }
+            builder.appendLine("END:VCARD")
+        }
+        return builder.toString()
+    }
+
+    private fun escapeVcf(value: String): String {
+        return value
+            .replace("\\", "\\\\")
+            .replace(";", "\\;")
+            .replace(",", "\\,")
+            .replace("\n", "\\n")
+            .replace("\r", "")
+    }
+
+    private fun toVcfBirthday(rawBirthday: String?): String? {
+        val normalized = rawBirthday?.let { normalizeBirthday(it) } ?: return null
+        val parts = normalized.split("/")
+        if (parts.size != 3) return null
+        return "${parts[2]}-${parts[1]}-${parts[0]}"
     }
 
     private fun setupAdminPanelLongPress() {
@@ -1001,6 +1380,7 @@ class MainActivity : AppCompatActivity() {
                 birthday = it.birthday?.let { value -> repairMojibake(value).ifBlank { null } },
                 comment = it.comment?.let { value -> repairMojibake(value).ifBlank { null } },
                 avatarColor = AvatarColorPalette.normalizeHex(it.avatarColor),
+                avatarPhotoUri = it.avatarPhotoUri?.trim()?.ifBlank { null },
             )
         }
         if (repaired != contacts) {
@@ -1034,5 +1414,8 @@ class MainActivity : AppCompatActivity() {
     companion object {
         private const val COMMENT_MAX_LENGTH = 512
         private const val ADMIN_HOLD_DURATION_MS = 5_000L
+        private const val DEV_PREFS_NAME = "contact_manager_dev_settings"
+        private const val KEY_NETWORK_MODE_ENABLED = "network_mode_enabled"
+        private const val KEY_NETWORK_ACCOUNT = "network_mode_account"
     }
 }

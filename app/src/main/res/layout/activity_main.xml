@@ -53,14 +53,30 @@
                         android:textStyle="bold" />
                 </LinearLayout>
 
-                <ImageButton
-                    android:id="@+id/btnImportDeviceContacts"
-                    android:layout_width="38dp"
-                    android:layout_height="38dp"
-                    android:background="@android:color/transparent"
-                    android:contentDescription="@string/action_import_device_contacts"
-                    android:padding="6dp"
-                    app:srcCompat="@drawable/ic_header_import_contacts" />
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal">
+
+                    <ImageButton
+                        android:id="@+id/btnSettings"
+                        android:layout_width="38dp"
+                        android:layout_height="38dp"
+                        android:background="@android:color/transparent"
+                        android:contentDescription="@string/action_settings"
+                        android:padding="6dp"
+                        app:srcCompat="@drawable/ic_header_settings" />
+
+                    <ImageButton
+                        android:id="@+id/btnGoogleMode"
+                        android:layout_width="38dp"
+                        android:layout_height="38dp"
+                        android:layout_marginStart="2dp"
+                        android:background="@android:color/transparent"
+                        android:contentDescription="@string/action_google_mode"
+                        android:padding="6dp"
+                        app:srcCompat="@drawable/ic_header_google" />
+                </LinearLayout>
             </LinearLayout>
 
             <TextView

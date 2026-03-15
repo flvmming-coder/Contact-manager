@@ -1,10 +1,12 @@
 package com.example.contactmanagerdemo.ui
 
 import android.graphics.drawable.GradientDrawable
+import android.net.Uri
 import android.os.SystemClock
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.ImageView
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 import com.example.contactmanagerdemo.R
@@ -38,6 +40,7 @@ class ContactAdapter(
 
     inner class ContactViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
         private val root: View = itemView.findViewById(R.id.contactCardRoot)
+        private val imageAvatar: ImageView = itemView.findViewById(R.id.imageAvatar)
         private val textAvatar: TextView = itemView.findViewById(R.id.textAvatar)
         private val textName: TextView = itemView.findViewById(R.id.textName)
         private val textPhone: TextView = itemView.findViewById(R.id.textPhone)
@@ -46,12 +49,7 @@ class ContactAdapter(
             textName.text = listOfNotNull(contact.name, contact.lastName).joinToString(" ")
             textPhone.text = contact.phone
 
-            textAvatar.text = buildInitials(contact)
-            textAvatar.background = GradientDrawable().apply {
-                shape = GradientDrawable.RECTANGLE
-                cornerRadius = 10f * itemView.resources.displayMetrics.density
-                setColor(avatarColorFor(contact))
-            }
+            bindAvatar(contact)
 
             root.setOnClickListener {
                 val now = SystemClock.elapsedRealtime()
@@ -63,6 +61,29 @@ class ContactAdapter(
                     lastTappedId = contact.id
                     lastTapAtMs = now
                 }
+            }
+        }
+
+        private fun bindAvatar(contact: Contact) {
+            val avatarUri = contact.avatarPhotoUri?.trim().orEmpty()
+            if (avatarUri.isNotEmpty()) {
+                val shown = runCatching {
+                    imageAvatar.setImageURI(Uri.parse(avatarUri))
+                    true
+                }.getOrElse { false }
+                if (shown) {
+                    imageAvatar.visibility = View.VISIBLE
+                    textAvatar.visibility = View.GONE
+                    return
+                }
+            }
+
+            imageAvatar.visibility = View.GONE
+            textAvatar.visibility = View.VISIBLE
+            textAvatar.text = buildInitials(contact)
+            textAvatar.background = GradientDrawable().apply {
+                shape = GradientDrawable.RECTANGLE
+                setColor(avatarColorFor(contact))
             }
         }
 

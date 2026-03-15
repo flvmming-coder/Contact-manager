@@ -10,6 +10,7 @@ data class Contact(
     val birthday: String? = null,
     val comment: String? = null,
     val avatarColor: String? = null,
+    val avatarPhotoUri: String? = null,
     val group: String,
     val isImported: Boolean = false,
 )
