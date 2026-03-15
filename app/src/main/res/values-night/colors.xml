@@ -1,0 +1,15 @@
+<resources>
+    <color name="primary">#F59E0B</color>
+    <color name="primary_dark">#D97706</color>
+    <color name="accent">#FBBF24</color>
+    <color name="background">#0B1220</color>
+    <color name="surface">#111827</color>
+    <color name="text_primary">#E2E8F0</color>
+    <color name="text_secondary">#94A3B8</color>
+    <color name="group_tab_text">#E2E8F0</color>
+    <color name="stats_text">#FBBF24</color>
+    <color name="card_stroke">#475569</color>
+    <color name="contact_name">#E2E8F0</color>
+    <color name="contact_phone">#AAB6C8</color>
+    <color name="phone_icon_tint">#94A3B8</color>
+</resources>

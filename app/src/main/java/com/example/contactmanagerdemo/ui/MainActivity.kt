@@ -45,6 +45,7 @@ import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.google.android.gms.common.api.ApiException
 import com.example.contactmanagerdemo.R
 import com.example.contactmanagerdemo.core.AppEventLogger
+import com.example.contactmanagerdemo.core.ThemeManager
 import com.example.contactmanagerdemo.core.UpdateChecker
 import com.example.contactmanagerdemo.data.Contact
 import com.example.contactmanagerdemo.data.ContactPrefsStorage
@@ -267,7 +268,7 @@ class MainActivity : AppCompatActivity() {
                 if (selected) {
                     0xFFFFFFFF.toInt()
                 } else {
-                    0xFF1E293B.toInt()
+                    ContextCompat.getColor(this, R.color.group_tab_text)
                 },
             )
         }
@@ -645,6 +646,7 @@ class MainActivity : AppCompatActivity() {
         textAvatarPreview.text = buildInitials(name, lastName)
         textAvatarPreview.background = GradientDrawable().apply {
             shape = GradientDrawable.RECTANGLE
+            cornerRadius = dp(14).toFloat()
             setColor(AvatarColorPalette.resolveColorInt(colorHex, avatarSeed))
         }
     }
@@ -781,6 +783,7 @@ class MainActivity : AppCompatActivity() {
         val options = arrayOf(
             getString(R.string.settings_import_contacts),
             getString(R.string.settings_export_vcf),
+            getString(R.string.settings_change_theme),
             getString(R.string.settings_clear_all),
         )
 
@@ -790,8 +793,29 @@ class MainActivity : AppCompatActivity() {
                 when (which) {
                     0 -> showImportContactsConfirmDialog()
                     1 -> startVcfExportFlow()
-                    2 -> confirmClearAllContacts()
+                    2 -> showThemeSelectorDialog()
+                    3 -> confirmClearAllContacts()
                 }
+            }
+            .setNegativeButton(R.string.action_cancel, null)
+            .show()
+    }
+
+    private fun showThemeSelectorDialog() {
+        val options = arrayOf(
+            getString(R.string.theme_light),
+            getString(R.string.theme_dark),
+        )
+        val currentIndex = if (ThemeManager.isDarkThemeEnabled(this)) 1 else 0
+
+        AlertDialog.Builder(this)
+            .setTitle(R.string.settings_theme_title)
+            .setSingleChoiceItems(options, currentIndex) { dialog, which ->
+                ThemeManager.setDarkThemeEnabled(this, which == 1)
+                AppEventLogger.info("THEME", "Theme changed to ${if (which == 1) "dark" else "light"}")
+                Toast.makeText(this, R.string.settings_theme_saved, Toast.LENGTH_SHORT).show()
+                dialog.dismiss()
+                recreate()
             }
             .setNegativeButton(R.string.action_cancel, null)
             .show()

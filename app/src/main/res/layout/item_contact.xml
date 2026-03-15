@@ -14,7 +14,9 @@
     <FrameLayout
         android:id="@+id/avatarContainer"
         android:layout_width="56dp"
-        android:layout_height="56dp">
+        android:layout_height="56dp"
+        android:background="@drawable/bg_avatar_rounded"
+        android:clipToOutline="true">
 
         <ImageView
             android:id="@+id/imageAvatar"
@@ -47,7 +49,7 @@
             android:id="@+id/textName"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:textColor="#0F172A"
+            android:textColor="@color/contact_name"
             android:textSize="17sp"
             android:textStyle="bold" />
 
@@ -63,7 +65,7 @@
                 android:layout_width="16dp"
                 android:layout_height="16dp"
                 android:contentDescription="@string/hint_phone"
-                app:tint="#64748B"
+                app:tint="@color/phone_icon_tint"
                 app:srcCompat="@drawable/ic_phone_16" />
 
             <TextView
@@ -71,7 +73,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginStart="6dp"
-                android:textColor="#475569"
+                android:textColor="@color/contact_phone"
                 android:textSize="14sp" />
         </LinearLayout>
     </LinearLayout>

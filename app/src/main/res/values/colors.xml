@@ -1,4 +1,4 @@
-﻿<resources>
+<resources>
     <color name="primary">#4361EE</color>
     <color name="primary_dark">#3A56D4</color>
     <color name="accent">#06D6A0</color>
@@ -6,4 +6,10 @@
     <color name="surface">#FFFFFF</color>
     <color name="text_primary">#2B2D42</color>
     <color name="text_secondary">#6C757D</color>
+    <color name="group_tab_text">#1E293B</color>
+    <color name="stats_text">#FBBF24</color>
+    <color name="card_stroke">#64748B</color>
+    <color name="contact_name">#0F172A</color>
+    <color name="contact_phone">#475569</color>
+    <color name="phone_icon_tint">#64748B</color>
 </resources>

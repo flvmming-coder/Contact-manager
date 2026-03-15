@@ -83,6 +83,7 @@ class ContactAdapter(
             textAvatar.text = buildInitials(contact)
             textAvatar.background = GradientDrawable().apply {
                 shape = GradientDrawable.RECTANGLE
+                cornerRadius = 14f * itemView.resources.displayMetrics.density
                 setColor(avatarColorFor(contact))
             }
         }
