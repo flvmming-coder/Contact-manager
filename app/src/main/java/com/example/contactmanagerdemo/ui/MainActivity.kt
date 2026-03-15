@@ -1,21 +1,27 @@
 package com.example.contactmanagerdemo.ui
 
+import android.Manifest
 import android.app.DatePickerDialog
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.database.Cursor
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
-import android.os.SystemClock
+import android.os.Handler
+import android.os.Looper
 import android.text.Editable
 import android.text.TextWatcher
 import android.view.Gravity
 import android.view.LayoutInflater
+import android.view.MotionEvent
 import android.view.View
 import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.EditText
+import android.widget.ImageButton
 import android.widget.LinearLayout
 import android.widget.Spinner
 import android.widget.TextView
@@ -23,6 +29,7 @@ import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.SwitchCompat
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import androidx.core.widget.doAfterTextChanged
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -31,13 +38,14 @@ import com.example.contactmanagerdemo.R
 import com.example.contactmanagerdemo.core.AppEventLogger
 import com.example.contactmanagerdemo.data.Contact
 import com.example.contactmanagerdemo.data.ContactPrefsStorage
+import android.provider.ContactsContract
 import org.json.JSONObject
+import java.net.HttpURLConnection
+import java.net.URL
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
-import java.net.HttpURLConnection
-import java.net.URL
 
 class MainActivity : AppCompatActivity() {
 
@@ -54,7 +62,22 @@ class MainActivity : AppCompatActivity() {
     private lateinit var editGroupCodes: List<String>
     private var selectedGroupCode: String = ContactPrefsStorage.GROUP_ALL
     private val groupViews: MutableMap<String, TextView> = linkedMapOf()
-    private val headerTapHistory: MutableList<Long> = mutableListOf()
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private var adminHoldTriggered = false
+    private val adminHoldRunnable = Runnable {
+        adminHoldTriggered = true
+        AppEventLogger.info("ADMIN", "Developer panel requested by long press")
+        showAdminPanel()
+    }
+    private val requestContactsPermissionLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            if (granted) {
+                importContactsFromDevice()
+            } else {
+                AppEventLogger.warn("IMPORT", "Contacts permission denied")
+                Toast.makeText(this, R.string.import_contacts_permission_denied, Toast.LENGTH_SHORT).show()
+            }
+        }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -83,9 +106,10 @@ class MainActivity : AppCompatActivity() {
                 AppEventLogger.info("UI", "Add contact button clicked")
                 showContactDialog(null)
             }
-            findViewById<View>(R.id.headerTriggerArea).setOnClickListener {
-                handleHeaderTap()
+            findViewById<ImageButton>(R.id.btnImportDeviceContacts).setOnClickListener {
+                showImportContactsConfirmDialog()
             }
+            setupAdminPanelLongPress()
             inputSearch.doAfterTextChanged { renderContacts() }
 
             migrateContactsIfNeeded()
@@ -101,6 +125,11 @@ class MainActivity : AppCompatActivity() {
         super.onResume()
         AppEventLogger.info("APP", "MainActivity onResume")
         loadContactsAndRender()
+    }
+
+    override fun onDestroy() {
+        mainHandler.removeCallbacks(adminHoldRunnable)
+        super.onDestroy()
     }
 
     private fun setupFilterGroups() {
@@ -424,16 +453,320 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun handleHeaderTap() {
-        val now = SystemClock.elapsedRealtime()
-        headerTapHistory.add(now)
-        headerTapHistory.removeAll { timestamp -> now - timestamp > ADMIN_TAP_WINDOW_MS }
+    private fun setupAdminPanelLongPress() {
+        val headerArea = findViewById<View>(R.id.headerTriggerArea)
+        headerArea.setOnTouchListener { _, event ->
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    adminHoldTriggered = false
+                    mainHandler.postDelayed(adminHoldRunnable, ADMIN_HOLD_DURATION_MS)
+                    true
+                }
 
-        if (headerTapHistory.size >= ADMIN_TAP_COUNT) {
-            headerTapHistory.clear()
-            AppEventLogger.info("ADMIN", "Developer panel requested")
-            showAdminPanel()
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    mainHandler.removeCallbacks(adminHoldRunnable)
+                    if (adminHoldTriggered) {
+                        adminHoldTriggered = false
+                    }
+                    true
+                }
+
+                else -> false
+            }
         }
+    }
+
+    private fun showImportContactsConfirmDialog() {
+        AlertDialog.Builder(this)
+            .setTitle(R.string.import_contacts_title)
+            .setMessage(R.string.import_contacts_message)
+            .setPositiveButton(R.string.import_contacts_action) { _, _ ->
+                requestContactsPermissionAndImport()
+            }
+            .setNegativeButton(R.string.action_cancel, null)
+            .show()
+    }
+
+    private fun requestContactsPermissionAndImport() {
+        val granted = ContextCompat.checkSelfPermission(
+            this,
+            Manifest.permission.READ_CONTACTS,
+        ) == PackageManager.PERMISSION_GRANTED
+
+        if (granted) {
+            importContactsFromDevice()
+        } else {
+            requestContactsPermissionLauncher.launch(Manifest.permission.READ_CONTACTS)
+        }
+    }
+
+    private fun importContactsFromDevice() {
+        AppEventLogger.info("IMPORT", "Contacts import started")
+        Thread {
+            val result = runCatching { performDeviceContactsImport() }
+            runOnUiThread {
+                result.onSuccess { importedCount ->
+                    if (importedCount > 0) {
+                        AppEventLogger.info("IMPORT", "Imported contacts count=$importedCount")
+                        Toast.makeText(this, getString(R.string.import_contacts_result, importedCount), Toast.LENGTH_SHORT).show()
+                    } else {
+                        AppEventLogger.info("IMPORT", "No contacts imported")
+                        Toast.makeText(this, R.string.import_contacts_none, Toast.LENGTH_SHORT).show()
+                    }
+                    loadContactsAndRender()
+                }.onFailure { error ->
+                    AppEventLogger.error("IMPORT", "Contacts import failed", error)
+                    Toast.makeText(this, R.string.import_contacts_error, Toast.LENGTH_SHORT).show()
+                }
+            }
+        }.start()
+    }
+
+    private fun performDeviceContactsImport(): Int {
+        val existing = storage.getAllContacts().toMutableList()
+        val dedupKeys = existing.mapTo(mutableSetOf()) { contactKey(it.name, it.lastName, it.phone) }
+
+        var imported = 0
+        var nextIdSeed = System.currentTimeMillis()
+        val contactsCursor = contentResolver.query(
+            ContactsContract.Contacts.CONTENT_URI,
+            arrayOf(
+                ContactsContract.Contacts._ID,
+                ContactsContract.Contacts.DISPLAY_NAME_PRIMARY,
+            ),
+            null,
+            null,
+            null,
+        ) ?: return 0
+
+        contactsCursor.use { cursor ->
+            while (cursor.moveToNext()) {
+                val contactId = cursor.getLongOrNull(ContactsContract.Contacts._ID) ?: continue
+                val displayName = cursor.getStringOrNull(ContactsContract.Contacts.DISPLAY_NAME_PRIMARY).orEmpty()
+
+                val details = loadDeviceContactDetails(contactId, displayName) ?: continue
+                val key = contactKey(details.name, details.lastName, details.phone)
+                if (!dedupKeys.add(key)) continue
+
+                nextIdSeed += 1
+                existing.add(
+                    Contact(
+                        id = nextIdSeed,
+                        name = details.name,
+                        lastName = details.lastName,
+                        phone = details.phone,
+                        email = details.email,
+                        address = details.address,
+                        birthday = details.birthday,
+                        comment = details.comment,
+                        group = ContactPrefsStorage.GROUP_OTHER,
+                        isImported = true,
+                    ),
+                )
+                imported += 1
+            }
+        }
+
+        if (imported > 0) {
+            storage.saveAllContacts(existing)
+        }
+        return imported
+    }
+
+    private fun loadDeviceContactDetails(contactId: Long, displayName: String): ImportedContactDetails? {
+        val phone = queryPhone(contactId).orEmpty()
+        if (phone.isBlank()) return null
+
+        val (name, lastName) = queryNameParts(contactId, displayName)
+        if (name.isBlank()) return null
+
+        return ImportedContactDetails(
+            name = name,
+            lastName = lastName,
+            phone = phone,
+            email = queryEmail(contactId),
+            address = queryAddress(contactId),
+            birthday = normalizeImportedBirthday(queryBirthday(contactId)),
+            comment = queryNote(contactId),
+        )
+    }
+
+    private fun queryNameParts(contactId: Long, fallbackDisplayName: String): Pair<String, String?> {
+        val result = queryDataByMimeType(
+            contactId = contactId,
+            mimeType = ContactsContract.CommonDataKinds.StructuredName.CONTENT_ITEM_TYPE,
+            projection = arrayOf(
+                ContactsContract.CommonDataKinds.StructuredName.GIVEN_NAME,
+                ContactsContract.CommonDataKinds.StructuredName.FAMILY_NAME,
+                ContactsContract.CommonDataKinds.StructuredName.DISPLAY_NAME,
+            ),
+        ) { cursor ->
+            val givenName = cursor.getStringOrNull(ContactsContract.CommonDataKinds.StructuredName.GIVEN_NAME).orEmpty().trim()
+            val familyName = cursor.getStringOrNull(ContactsContract.CommonDataKinds.StructuredName.FAMILY_NAME)?.trim().orEmpty()
+            val display = cursor.getStringOrNull(ContactsContract.CommonDataKinds.StructuredName.DISPLAY_NAME).orEmpty().trim()
+            Triple(givenName, familyName.ifBlank { null }, display)
+        }
+
+        if (result != null) {
+            val (givenName, familyName, display) = result
+            val baseName = when {
+                givenName.isNotBlank() -> givenName
+                display.isNotBlank() -> display.substringBefore(" ").trim()
+                else -> fallbackDisplayName.substringBefore(" ").trim()
+            }
+            val baseLastName = familyName ?: parseLastNameFromDisplay(display.ifBlank { fallbackDisplayName })
+            return baseName to baseLastName
+        }
+
+        val fallbackName = fallbackDisplayName.substringBefore(" ").trim()
+        val fallbackLast = parseLastNameFromDisplay(fallbackDisplayName)
+        return fallbackName to fallbackLast
+    }
+
+    private fun queryPhone(contactId: Long): String? {
+        val cursor = contentResolver.query(
+            ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
+            arrayOf(ContactsContract.CommonDataKinds.Phone.NUMBER),
+            "${ContactsContract.CommonDataKinds.Phone.CONTACT_ID}=?",
+            arrayOf(contactId.toString()),
+            "${ContactsContract.CommonDataKinds.Phone.IS_PRIMARY} DESC",
+        ) ?: return null
+
+        cursor.use {
+            while (it.moveToNext()) {
+                val raw = it.getStringOrNull(ContactsContract.CommonDataKinds.Phone.NUMBER).orEmpty().trim()
+                if (raw.isNotBlank()) {
+                    return raw
+                }
+            }
+        }
+        return null
+    }
+
+    private fun queryEmail(contactId: Long): String? {
+        val cursor = contentResolver.query(
+            ContactsContract.CommonDataKinds.Email.CONTENT_URI,
+            arrayOf(ContactsContract.CommonDataKinds.Email.ADDRESS),
+            "${ContactsContract.CommonDataKinds.Email.CONTACT_ID}=?",
+            arrayOf(contactId.toString()),
+            "${ContactsContract.CommonDataKinds.Email.IS_PRIMARY} DESC",
+        ) ?: return null
+
+        cursor.use {
+            while (it.moveToNext()) {
+                val email = it.getStringOrNull(ContactsContract.CommonDataKinds.Email.ADDRESS).orEmpty().trim()
+                if (email.isNotBlank()) return email
+            }
+        }
+        return null
+    }
+
+    private fun queryAddress(contactId: Long): String? {
+        return queryDataByMimeType(
+            contactId = contactId,
+            mimeType = ContactsContract.CommonDataKinds.StructuredPostal.CONTENT_ITEM_TYPE,
+            projection = arrayOf(ContactsContract.CommonDataKinds.StructuredPostal.FORMATTED_ADDRESS),
+        ) { cursor ->
+            cursor.getStringOrNull(ContactsContract.CommonDataKinds.StructuredPostal.FORMATTED_ADDRESS)
+                ?.trim()
+                ?.ifBlank { null }
+        }
+    }
+
+    private fun queryBirthday(contactId: Long): String? {
+        val cursor = contentResolver.query(
+            ContactsContract.Data.CONTENT_URI,
+            arrayOf(ContactsContract.CommonDataKinds.Event.START_DATE),
+            "${ContactsContract.Data.CONTACT_ID}=? AND ${ContactsContract.Data.MIMETYPE}=? AND ${ContactsContract.CommonDataKinds.Event.TYPE}=?",
+            arrayOf(
+                contactId.toString(),
+                ContactsContract.CommonDataKinds.Event.CONTENT_ITEM_TYPE,
+                ContactsContract.CommonDataKinds.Event.TYPE_BIRTHDAY.toString(),
+            ),
+            null,
+        ) ?: return null
+
+        cursor.use {
+            while (it.moveToNext()) {
+                val date = it.getStringOrNull(ContactsContract.CommonDataKinds.Event.START_DATE).orEmpty().trim()
+                if (date.isNotBlank()) return date
+            }
+        }
+        return null
+    }
+
+    private fun queryNote(contactId: Long): String? {
+        return queryDataByMimeType(
+            contactId = contactId,
+            mimeType = ContactsContract.CommonDataKinds.Note.CONTENT_ITEM_TYPE,
+            projection = arrayOf(ContactsContract.CommonDataKinds.Note.NOTE),
+        ) { cursor ->
+            cursor.getStringOrNull(ContactsContract.CommonDataKinds.Note.NOTE)
+                ?.trim()
+                ?.take(COMMENT_MAX_LENGTH)
+                ?.ifBlank { null }
+        }
+    }
+
+    private fun normalizeImportedBirthday(rawValue: String?): String? {
+        val raw = rawValue?.trim().orEmpty()
+        if (raw.isBlank()) return null
+
+        val normalized = when {
+            raw.matches(Regex("\\d{4}-\\d{2}-\\d{2}")) -> {
+                val parts = raw.split("-")
+                "${parts[2]}/${parts[1]}/${parts[0]}"
+            }
+
+            raw.matches(Regex("\\d{2}/\\d{2}/\\d{4}")) -> raw
+            else -> null
+        }
+
+        return normalized?.let { normalizeBirthday(it) }
+    }
+
+    private fun parseLastNameFromDisplay(displayName: String): String? {
+        val parts = displayName.trim().split(" ").filter { it.isNotBlank() }
+        return parts.drop(1).joinToString(" ").ifBlank { null }
+    }
+
+    private fun contactKey(name: String, lastName: String?, phone: String): String {
+        val fullName = listOfNotNull(name, lastName).joinToString(" ").trim().lowercase(Locale.getDefault())
+        val normalizedPhone = phone.filter { it.isDigit() || it == '+' }
+        return "$fullName|$normalizedPhone"
+    }
+
+    private fun <T> queryDataByMimeType(
+        contactId: Long,
+        mimeType: String,
+        projection: Array<String>,
+        mapper: (Cursor) -> T?,
+    ): T? {
+        val cursor = contentResolver.query(
+            ContactsContract.Data.CONTENT_URI,
+            projection,
+            "${ContactsContract.Data.CONTACT_ID}=? AND ${ContactsContract.Data.MIMETYPE}=?",
+            arrayOf(contactId.toString(), mimeType),
+            null,
+        ) ?: return null
+
+        cursor.use {
+            while (it.moveToNext()) {
+                val mapped = mapper(it)
+                if (mapped != null) return mapped
+            }
+        }
+        return null
+    }
+
+    private fun Cursor.getStringOrNull(columnName: String): String? {
+        val index = getColumnIndex(columnName)
+        return if (index >= 0 && !isNull(index)) getString(index) else null
+    }
+
+    private fun Cursor.getLongOrNull(columnName: String): Long? {
+        val index = getColumnIndex(columnName)
+        return if (index >= 0 && !isNull(index)) getLong(index) else null
     }
 
     private fun showAdminPanel() {
@@ -445,7 +778,11 @@ class MainActivity : AppCompatActivity() {
         val textUpdateResult = dialogView.findViewById<TextView>(R.id.textUpdateResult)
 
         switchLogs.isChecked = AppEventLogger.isLoggingEnabled()
-        textVersionValue.text = getString(R.string.admin_version_value, getAppVersionName())
+        textVersionValue.text = getString(
+            R.string.admin_version_value,
+            getAppVersionName(),
+            resources.getInteger(R.integer.update_sequence),
+        )
         textLogPathValue.text = getString(R.string.admin_log_path_value, AppEventLogger.getCurrentLogDirectory(this))
 
         switchLogs.setOnCheckedChangeListener { _, enabled ->
@@ -657,10 +994,19 @@ class MainActivity : AppCompatActivity() {
         val htmlUrl: String,
     )
 
+    private data class ImportedContactDetails(
+        val name: String,
+        val lastName: String?,
+        val phone: String,
+        val email: String?,
+        val address: String?,
+        val birthday: String?,
+        val comment: String?,
+    )
+
     companion object {
         private const val COMMENT_MAX_LENGTH = 512
-        private const val ADMIN_TAP_COUNT = 5
-        private const val ADMIN_TAP_WINDOW_MS = 2_000L
+        private const val ADMIN_HOLD_DURATION_MS = 5_000L
         private const val NETWORK_TIMEOUT_MS = 8_000
         private const val GITHUB_LATEST_RELEASE_URL =
             "https://api.github.com/repos/flvmming-coder/Contact-manager/releases/latest"

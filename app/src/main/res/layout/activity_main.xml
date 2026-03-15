@@ -18,32 +18,49 @@
             android:padding="14dp">
 
             <LinearLayout
-                android:id="@+id/headerTriggerArea"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:clickable="true"
-                android:focusable="true"
                 android:gravity="center_vertical"
                 android:orientation="horizontal">
 
-                <ImageView
-                    android:id="@+id/imageHeaderIcon"
-                    android:layout_width="24dp"
-                    android:layout_height="24dp"
-                    android:background="@drawable/bg_fab_gradient_circle"
-                    android:contentDescription="@string/app_name"
-                    android:padding="4dp"
-                    app:srcCompat="@drawable/ic_contacts_header_white" />
-
-                <TextView
-                    android:id="@+id/textAppTitle"
-                    android:layout_width="match_parent"
+                <LinearLayout
+                    android:id="@+id/headerTriggerArea"
+                    android:layout_width="0dp"
                     android:layout_height="wrap_content"
-                    android:layout_marginStart="10dp"
-                    android:text="@string/app_name"
-                    android:textColor="@android:color/white"
-                    android:textSize="22sp"
-                    android:textStyle="bold" />
+                    android:layout_weight="1"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <ImageView
+                        android:id="@+id/imageHeaderIcon"
+                        android:layout_width="24dp"
+                        android:layout_height="24dp"
+                        android:background="@drawable/bg_fab_gradient_circle"
+                        android:contentDescription="@string/app_name"
+                        android:padding="4dp"
+                        app:srcCompat="@drawable/ic_contacts_header_white" />
+
+                    <TextView
+                        android:id="@+id/textAppTitle"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="10dp"
+                        android:text="@string/app_name"
+                        android:textColor="@android:color/white"
+                        android:textSize="22sp"
+                        android:textStyle="bold" />
+                </LinearLayout>
+
+                <ImageButton
+                    android:id="@+id/btnImportDeviceContacts"
+                    android:layout_width="38dp"
+                    android:layout_height="38dp"
+                    android:background="@android:color/transparent"
+                    android:contentDescription="@string/action_import_device_contacts"
+                    android:padding="6dp"
+                    app:srcCompat="@drawable/ic_header_import_contacts" />
             </LinearLayout>
 
             <TextView
