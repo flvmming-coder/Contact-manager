@@ -1,6 +1,5 @@
 package com.example.contactmanagerdemo.ui
 
-import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.os.SystemClock
 import android.view.LayoutInflater
@@ -11,7 +10,6 @@ import androidx.recyclerview.widget.RecyclerView
 import com.example.contactmanagerdemo.R
 import com.example.contactmanagerdemo.data.Contact
 import java.util.Locale
-import kotlin.math.absoluteValue
 
 class ContactAdapter(
     private val onEdit: (Contact) -> Unit,
@@ -85,20 +83,11 @@ class ContactAdapter(
         }
 
         private fun avatarColorFor(contact: Contact): Int {
-            val index = (contact.id.hashCode().absoluteValue) % AVATAR_COLORS.size
-            return AVATAR_COLORS[index]
+            return AvatarColorPalette.resolveColorInt(contact.avatarColor, contact.id)
         }
     }
 
     companion object {
         private const val DOUBLE_TAP_WINDOW_MS = 1_000L
-        private val AVATAR_COLORS = intArrayOf(
-            Color.parseColor("#1E293B"),
-            Color.parseColor("#0F172A"),
-            Color.parseColor("#334155"),
-            Color.parseColor("#475569"),
-            Color.parseColor("#F59E0B"),
-            Color.parseColor("#FBBF24"),
-        )
     }
 }

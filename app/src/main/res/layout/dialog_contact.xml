@@ -77,6 +77,28 @@
         android:maxLength="512"
         android:minLines="3" />
 
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <Button
+            android:id="@+id/btnPickAvatarColor"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="@string/action_pick_avatar_color" />
+
+        <View
+            android:id="@+id/viewAvatarColorPreview"
+            android:layout_width="28dp"
+            android:layout_height="28dp"
+            android:layout_marginStart="8dp"
+            android:background="@drawable/bg_avatar_color_preview" />
+    </LinearLayout>
+
     <Spinner
         android:id="@+id/spinnerGroup"
         android:layout_width="match_parent"

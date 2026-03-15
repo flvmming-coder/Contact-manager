@@ -52,6 +52,7 @@ class ContactPrefsStorage(context: Context) {
                     put("address", contact.address)
                     put("birthday", contact.birthday)
                     put("comment", contact.comment)
+                    put("avatarColor", contact.avatarColor)
                     put("group", contact.group)
                     put("isImported", contact.isImported)
                 },
@@ -113,6 +114,7 @@ class ContactPrefsStorage(context: Context) {
                         address = repairMojibake(obj.optString("address")).trim().ifBlank { null },
                         birthday = repairMojibake(obj.optString("birthday")).trim().ifBlank { null },
                         comment = repairMojibake(obj.optString("comment")).trim().ifBlank { null },
+                        avatarColor = repairMojibake(obj.optString("avatarColor")).trim().ifBlank { null },
                         group = normalizeGroup(rawGroup),
                         isImported = obj.optBoolean("isImported", obj.optBoolean("imported", false)),
                     ),

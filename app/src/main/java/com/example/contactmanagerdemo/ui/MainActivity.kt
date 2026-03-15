@@ -5,6 +5,7 @@ import android.app.DatePickerDialog
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.database.Cursor
+import android.graphics.drawable.GradientDrawable
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.net.Uri
@@ -34,14 +35,12 @@ import androidx.core.content.ContextCompat
 import androidx.core.widget.doAfterTextChanged
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import android.provider.ContactsContract
 import com.example.contactmanagerdemo.R
 import com.example.contactmanagerdemo.core.AppEventLogger
+import com.example.contactmanagerdemo.core.UpdateChecker
 import com.example.contactmanagerdemo.data.Contact
 import com.example.contactmanagerdemo.data.ContactPrefsStorage
-import android.provider.ContactsContract
-import org.json.JSONObject
-import java.net.HttpURLConnection
-import java.net.URL
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -78,6 +77,12 @@ class MainActivity : AppCompatActivity() {
                 Toast.makeText(this, R.string.import_contacts_permission_denied, Toast.LENGTH_SHORT).show()
             }
         }
+    private val requestNotificationsPermissionLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            if (!granted) {
+                AppEventLogger.warn("UPDATE", "Notifications permission denied")
+            }
+        }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -111,6 +116,7 @@ class MainActivity : AppCompatActivity() {
             }
             setupAdminPanelLongPress()
             inputSearch.doAfterTextChanged { renderContacts() }
+            ensureNotificationsPermissionIfNeeded()
 
             migrateContactsIfNeeded()
             loadContactsAndRender()
@@ -224,12 +230,23 @@ class MainActivity : AppCompatActivity() {
         val inputBirthday = dialogView.findViewById<EditText>(R.id.inputBirthday)
         val inputComment = dialogView.findViewById<EditText>(R.id.inputComment)
         val btnPickBirthday = dialogView.findViewById<Button>(R.id.btnPickBirthday)
+        val btnPickAvatarColor = dialogView.findViewById<Button>(R.id.btnPickAvatarColor)
+        val viewAvatarColorPreview = dialogView.findViewById<View>(R.id.viewAvatarColorPreview)
         val spinnerGroup = dialogView.findViewById<Spinner>(R.id.spinnerGroup)
+        var selectedAvatarColor = contact?.avatarColor
+        val avatarSeed = contact?.id ?: System.currentTimeMillis()
 
         setupBirthdayInputMask(inputBirthday)
         btnPickBirthday.setOnClickListener {
             showBirthdayDatePicker(inputBirthday)
         }
+        btnPickAvatarColor.setOnClickListener {
+            showAvatarColorPicker(selectedAvatarColor) { selectedHex ->
+                selectedAvatarColor = selectedHex
+                updateAvatarColorPreview(viewAvatarColorPreview, selectedAvatarColor, avatarSeed)
+            }
+        }
+        updateAvatarColorPreview(viewAvatarColorPreview, selectedAvatarColor, avatarSeed)
 
         val groupLabels = editGroupCodes.map { mapGroupLabel(it) }
         spinnerGroup.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, groupLabels)
@@ -319,6 +336,7 @@ class MainActivity : AppCompatActivity() {
                     address = address,
                     birthday = birthday,
                     comment = comment,
+                    avatarColor = selectedAvatarColor,
                     group = group,
                     isImported = contact?.isImported ?: false,
                 )
@@ -338,6 +356,45 @@ class MainActivity : AppCompatActivity() {
         }
 
         dialog.show()
+    }
+
+    private fun showAvatarColorPicker(
+        currentColorHex: String?,
+        onSelected: (String?) -> Unit,
+    ) {
+        val colors = AvatarColorPalette.allHexColors()
+        val options = mutableListOf(getString(R.string.avatar_color_random)).apply {
+            addAll(colors.map { it.uppercase() })
+        }
+
+        val normalizedCurrent = AvatarColorPalette.normalizeHex(currentColorHex)
+        val selectedIndex = normalizedCurrent
+            ?.let { hex -> colors.indexOfFirst { it.equals(hex, ignoreCase = true) } }
+            ?.takeIf { it >= 0 }
+            ?.plus(1)
+            ?: 0
+
+        AlertDialog.Builder(this)
+            .setTitle(R.string.action_pick_avatar_color)
+            .setSingleChoiceItems(options.toTypedArray(), selectedIndex) { dialog, which ->
+                if (which == 0) {
+                    onSelected(null)
+                } else {
+                    onSelected(colors[which - 1].uppercase())
+                }
+                dialog.dismiss()
+            }
+            .setNegativeButton(R.string.action_cancel, null)
+            .show()
+    }
+
+    private fun updateAvatarColorPreview(previewView: View, colorHex: String?, seed: Long) {
+        val colorInt = AvatarColorPalette.resolveColorInt(colorHex, seed)
+        previewView.background = GradientDrawable().apply {
+            shape = GradientDrawable.OVAL
+            setColor(colorInt)
+            setStroke(dp(1), 0xFFE2E8F0.toInt())
+        }
     }
 
     private fun setupBirthdayInputMask(inputBirthday: EditText) {
@@ -559,6 +616,7 @@ class MainActivity : AppCompatActivity() {
                         address = details.address,
                         birthday = details.birthday,
                         comment = details.comment,
+                        avatarColor = null,
                         group = ContactPrefsStorage.GROUP_OTHER,
                         isImported = true,
                     ),
@@ -820,6 +878,17 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
 
+    private fun ensureNotificationsPermissionIfNeeded() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
+        val granted = ContextCompat.checkSelfPermission(
+            this,
+            Manifest.permission.POST_NOTIFICATIONS,
+        ) == PackageManager.PERMISSION_GRANTED
+        if (!granted) {
+            requestNotificationsPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
+
     private fun hasInternetConnection(): Boolean {
         @Suppress("DEPRECATION")
         val cm = getSystemService(CONNECTIVITY_SERVICE) as? ConnectivityManager ?: return false
@@ -835,19 +904,29 @@ class MainActivity : AppCompatActivity() {
 
     private fun checkForUpdatesFromGithub(textUpdateResult: TextView) {
         Thread {
-            val result = runCatching { fetchLatestReleaseInfo() }
+            val result = runCatching { UpdateChecker.fetchLatestReleaseOrPrerelease() }
             runOnUiThread {
                 result.onSuccess { latest ->
-                    val latestNormalized = normalizeVersionTag(latest.tagName)
-                    val currentNormalized = normalizeVersionTag(getAppVersionName())
-                    val hasUpdate = compareVersions(latestNormalized, currentNormalized) > 0
+                    val latestNormalized = UpdateChecker.normalizeVersionTag(latest.tagName)
+                    val currentNormalized = UpdateChecker.normalizeVersionTag(getAppVersionName())
+                    val hasUpdate = UpdateChecker.compareVersions(latestNormalized, currentNormalized) > 0
                     if (hasUpdate) {
-                        textUpdateResult.text = getString(R.string.admin_update_available, latestNormalized)
+                        textUpdateResult.text = if (latest.isPrerelease) {
+                            getString(R.string.admin_update_available_prerelease, latestNormalized)
+                        } else {
+                            getString(R.string.admin_update_available, latestNormalized)
+                        }
                         AppEventLogger.info("ADMIN", "Update available: $latestNormalized")
                         if (latest.htmlUrl.isNotBlank()) {
                             AlertDialog.Builder(this)
                                 .setTitle(R.string.admin_panel_title)
-                                .setMessage(getString(R.string.admin_update_available, latestNormalized))
+                                .setMessage(
+                                    if (latest.isPrerelease) {
+                                        getString(R.string.admin_update_available_prerelease, latestNormalized)
+                                    } else {
+                                        getString(R.string.admin_update_available, latestNormalized)
+                                    },
+                                )
                                 .setPositiveButton(R.string.admin_open_release_page) { _, _ ->
                                     runCatching {
                                         startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(latest.htmlUrl)))
@@ -866,54 +945,6 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }.start()
-    }
-
-    private fun fetchLatestReleaseInfo(): LatestReleaseInfo {
-        val url = URL(GITHUB_LATEST_RELEASE_URL)
-        val connection = (url.openConnection() as HttpURLConnection).apply {
-            requestMethod = "GET"
-            connectTimeout = NETWORK_TIMEOUT_MS
-            readTimeout = NETWORK_TIMEOUT_MS
-            setRequestProperty("Accept", "application/vnd.github+json")
-        }
-        return try {
-            val responseCode = connection.responseCode
-            if (responseCode !in 200..299) {
-                throw IllegalStateException("GitHub API response code=$responseCode")
-            }
-            val body = connection.inputStream.bufferedReader().use { it.readText() }
-            val json = JSONObject(body)
-            LatestReleaseInfo(
-                tagName = json.optString("tag_name", ""),
-                htmlUrl = json.optString("html_url", ""),
-            )
-        } finally {
-            connection.disconnect()
-        }
-    }
-
-    private fun normalizeVersionTag(rawVersion: String): String {
-        return rawVersion.trim().removePrefix("v").removePrefix("V").ifBlank { "0.0.0" }
-    }
-
-    private fun compareVersions(left: String, right: String): Int {
-        val leftParts = parseVersionParts(left)
-        val rightParts = parseVersionParts(right)
-        val maxLen = maxOf(leftParts.size, rightParts.size)
-        for (i in 0 until maxLen) {
-            val a = leftParts.getOrElse(i) { 0 }
-            val b = rightParts.getOrElse(i) { 0 }
-            if (a != b) return a - b
-        }
-        return 0
-    }
-
-    private fun parseVersionParts(version: String): List<Int> {
-        return version.split(".")
-            .map { part ->
-                part.takeWhile { ch -> ch.isDigit() }
-                    .toIntOrNull() ?: 0
-            }
     }
 
     private fun getAppVersionName(): String {
@@ -969,6 +1000,7 @@ class MainActivity : AppCompatActivity() {
                 address = it.address?.let { value -> repairMojibake(value).ifBlank { null } },
                 birthday = it.birthday?.let { value -> repairMojibake(value).ifBlank { null } },
                 comment = it.comment?.let { value -> repairMojibake(value).ifBlank { null } },
+                avatarColor = AvatarColorPalette.normalizeHex(it.avatarColor),
             )
         }
         if (repaired != contacts) {
@@ -989,11 +1021,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private data class LatestReleaseInfo(
-        val tagName: String,
-        val htmlUrl: String,
-    )
-
     private data class ImportedContactDetails(
         val name: String,
         val lastName: String?,
@@ -1007,8 +1034,5 @@ class MainActivity : AppCompatActivity() {
     companion object {
         private const val COMMENT_MAX_LENGTH = 512
         private const val ADMIN_HOLD_DURATION_MS = 5_000L
-        private const val NETWORK_TIMEOUT_MS = 8_000
-        private const val GITHUB_LATEST_RELEASE_URL =
-            "https://api.github.com/repos/flvmming-coder/Contact-manager/releases/latest"
     }
 }
