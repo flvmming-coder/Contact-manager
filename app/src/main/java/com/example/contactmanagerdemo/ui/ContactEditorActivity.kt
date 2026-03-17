@@ -15,6 +15,7 @@ import android.widget.ImageView
 import android.widget.Spinner
 import android.widget.TextView
 import android.widget.Toast
+import android.widget.AdapterView
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
@@ -45,6 +46,7 @@ class ContactEditorActivity : AppCompatActivity() {
     private lateinit var inputAddress: EditText
     private lateinit var inputBirthday: EditText
     private lateinit var inputComment: EditText
+    private lateinit var inputCustomGroupTitle: EditText
     private lateinit var spinnerGroup: Spinner
     private lateinit var imageAvatarPreview: ImageView
     private lateinit var textAvatarPreview: TextView
@@ -91,6 +93,7 @@ class ContactEditorActivity : AppCompatActivity() {
         inputAddress = findViewById(R.id.inputAddress)
         inputBirthday = findViewById(R.id.inputBirthday)
         inputComment = findViewById(R.id.inputComment)
+        inputCustomGroupTitle = findViewById(R.id.inputCustomGroupTitle)
         spinnerGroup = findViewById(R.id.spinnerGroup)
         imageAvatarPreview = findViewById(R.id.imageAvatarPreview)
         textAvatarPreview = findViewById(R.id.textAvatarPreview)
@@ -104,6 +107,18 @@ class ContactEditorActivity : AppCompatActivity() {
             android.R.layout.simple_spinner_dropdown_item,
             editGroupCodes.map { storage.getGroupTitle(it) },
         )
+        spinnerGroup.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
+                val code = editGroupCodes.getOrElse(position) { ContactPrefsStorage.GROUP_UNASSIGNED }
+                val showCustomGroup = code == ContactPrefsStorage.GROUP_OTHER
+                inputCustomGroupTitle.visibility = if (showCustomGroup) View.VISIBLE else View.GONE
+                if (!showCustomGroup) {
+                    inputCustomGroupTitle.text?.clear()
+                }
+            }
+
+            override fun onNothingSelected(parent: AdapterView<*>?) = Unit
+        }
 
         findViewById<Button>(R.id.btnPickBirthday).setOnClickListener { showBirthdayDatePicker() }
         findViewById<Button>(R.id.btnPickAvatarPhoto).setOnClickListener { pickAvatarPhotoLauncher.launch(arrayOf("image/*")) }
@@ -143,8 +158,13 @@ class ContactEditorActivity : AppCompatActivity() {
         val address = inputAddress.text.toString().trim().ifBlank { null }
         val birthdayRaw = inputBirthday.text.toString().trim()
         val comment = inputComment.text.toString().trim().ifBlank { null }
-        val groupCode = editGroupCodes.getOrElse(spinnerGroup.selectedItemPosition.takeIf { it >= 0 } ?: 0) {
+        var groupCode = editGroupCodes.getOrElse(spinnerGroup.selectedItemPosition.takeIf { it >= 0 } ?: 0) {
             ContactPrefsStorage.GROUP_UNASSIGNED
+        }
+        val customGroupTitle = inputCustomGroupTitle.text.toString().trim()
+
+        if (groupCode == ContactPrefsStorage.GROUP_OTHER && customGroupTitle.isNotBlank()) {
+            groupCode = storage.ensureGroupByTitle(customGroupTitle)
         }
 
         var hasError = false
@@ -153,6 +173,9 @@ class ContactEditorActivity : AppCompatActivity() {
             hasError = true
         }
         if (phone.isBlank()) {
+            inputPhone.error = getString(R.string.error_required)
+            hasError = true
+        } else if (phone.startsWith("+7") && phone.filter { it.isDigit() }.length <= 1) {
             inputPhone.error = getString(R.string.error_required)
             hasError = true
         } else if (phone != rawPhone) {
@@ -273,19 +296,52 @@ class ContactEditorActivity : AppCompatActivity() {
             override fun afterTextChanged(s: Editable?) {
                 if (editing) return
                 val raw = s?.toString().orEmpty()
-                if (raw.isBlank()) return
-                if (PhoneNumberFormatter.isServiceNumber(raw)) return
-                if (PhoneNumberFormatter.isForeignInternational(raw)) return
-
-                val formatted = PhoneNumberFormatter.formatRuKzMask(raw)
-                if (formatted == raw) return
-
+                if (raw.contains('*') || raw.contains('#')) return
+                if (raw.any { it.isLetter() }) return
+                if (raw.startsWith("+") && !raw.startsWith("+7")) return
                 editing = true
+                val digitsOnly = raw.filter { it.isDigit() }.let { digitsRaw ->
+                    var digits = digitsRaw
+                    if (raw.startsWith("+7") && digits.startsWith("7")) {
+                        digits = digits.drop(1)
+                    } else if (digits.length > 10 && (digits.startsWith("7") || digits.startsWith("8"))) {
+                        digits = digits.drop(1)
+                    }
+                    when {
+                        digits.length > 10 -> digits.take(10)
+                        else -> digits
+                    }
+                }
+                val formatted = formatRuMaskFromDigits(digitsOnly)
                 s?.replace(0, s.length, formatted)
-                inputPhone.setSelection(formatted.length)
+                inputPhone.setSelection(formatted.length.coerceAtMost(inputPhone.text.length))
                 editing = false
             }
         })
+        if (inputPhone.text.isNullOrBlank()) {
+            inputPhone.setText("+7")
+            inputPhone.setSelection(inputPhone.text.length)
+        }
+    }
+
+    private fun formatRuMaskFromDigits(digits: String): String {
+        if (digits.isBlank()) return "+7"
+        val builder = StringBuilder("+7 (")
+        builder.append(digits.take(3))
+        if (digits.length >= 3) builder.append(")")
+        if (digits.length > 3) {
+            builder.append(" ")
+            builder.append(digits.substring(3, minOf(6, digits.length)))
+        }
+        if (digits.length > 6) {
+            builder.append("-")
+            builder.append(digits.substring(6, minOf(8, digits.length)))
+        }
+        if (digits.length > 8) {
+            builder.append("-")
+            builder.append(digits.substring(8, minOf(10, digits.length)))
+        }
+        return builder.toString()
     }
 
     private fun setupBirthdayInputMask() {

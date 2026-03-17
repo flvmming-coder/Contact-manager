@@ -276,10 +276,18 @@ class ContactPrefsStorage(context: Context) {
     }
 
     fun clearAllInfo() {
+        val groupsAfterReset = JSONArray().apply {
+            put(
+                JSONObject().apply {
+                    put("code", GROUP_OTHER)
+                    put("title", appContext.getString(R.string.group_other))
+                },
+            )
+        }
         prefs.edit()
             .putString(KEY_CONTACTS, "[]")
             .putString(KEY_TRASH, "[]")
-            .putString(KEY_GROUPS, "[]")
+            .putString(KEY_GROUPS, groupsAfterReset.toString())
             .putInt(KEY_TRASH_RETENTION_DAYS, 30)
             .apply()
     }

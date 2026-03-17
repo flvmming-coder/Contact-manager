@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <external-path
+        name="legacy_logs"
+        path="Android/data/com.contact.manager/ContactManagerLogs/" />
+    <external-files-path
+        name="app_logs"
+        path="Documents/ContactManagerLogs/" />
+    <files-path
+        name="internal_logs"
+        path="ContactManagerLogs/" />
+</paths>

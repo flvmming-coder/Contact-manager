@@ -1,4 +1,4 @@
-name: Publish v0.18.1 Pre-release
+name: Publish v0.18.1 Release
 
 on:
   workflow_dispatch:
@@ -31,7 +31,7 @@ jobs:
           files: versions/Contact Manager v0.17/ContactManager-v0.17-debug.apk
           fail_on_unmatched_files: true
 
-  publish-v0-18-1-prerelease:
+  publish-v0-18-1-release:
     needs: promote-v0-17-release
     runs-on: ubuntu-latest
     permissions:
@@ -40,14 +40,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Publish or update v0.18.1 pre-release
+      - name: Publish or update v0.18.1 release
         uses: softprops/action-gh-release@v2
         with:
           token: ${{ secrets.FLVMMING_CODER_TOKEN || github.token }}
           tag_name: v0.18.1
           name: Contact Manager v0.18.1 (24)
-          prerelease: true
+          prerelease: false
           draft: false
+          make_latest: true
           body_path: versions/Contact Manager v0.18.1/README.md
           files: versions/Contact Manager v0.18.1/ContactManager-v0.18.1-debug.apk
           fail_on_unmatched_files: true

@@ -1,6 +1,7 @@
 package com.example.contactmanagerdemo.core
 
 import android.content.Context
+import android.os.Build
 import android.os.Environment
 import java.io.File
 import java.text.SimpleDateFormat
@@ -9,16 +10,31 @@ import java.util.Locale
 
 object AppEventLogger {
 
+    data class PendingCrashReport(
+        val file: File,
+        val sessionStartedAtMs: Long,
+        val crashedAtMs: Long,
+        val deviceName: String,
+    )
+
     private const val LOG_DIR = "ContactManagerLogs"
     private const val TAG_APP = "APP"
     private const val REQUESTED_LOG_ROOT = "Android/data/com.contact.manager"
     private const val PREFS_NAME = "contact_manager_dev_settings"
     private const val KEY_LOGS_ENABLED = "logs_enabled"
+    private const val KEY_SESSION_START_MS = "log_session_start_ms"
+    private const val KEY_PENDING_CRASH_FILE = "pending_crash_file"
+    private const val KEY_PENDING_CRASH_START = "pending_crash_start"
+    private const val KEY_PENDING_CRASH_END = "pending_crash_end"
+    private const val KEY_PENDING_CRASH_DEVICE = "pending_crash_device"
+    private const val LOG_RETENTION_MS = 3L * 24L * 60L * 60L * 1000L
 
     @Volatile
     private var appContext: Context? = null
     @Volatile
     private var sessionFileName: String = "session-unknown.txt"
+    @Volatile
+    private var sessionStartedAtMs: Long = 0L
     @Volatile
     private var logsEnabled: Boolean = true
     @Volatile
@@ -28,15 +44,30 @@ object AppEventLogger {
 
     fun init(context: Context) {
         if (appContext != null) return
-        appContext = context.applicationContext
-        logsEnabled = readLoggingEnabled(context.applicationContext)
-        sessionFileName = "session-${SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date())}.txt"
-        resolvedLogDirectory = runCatching { resolveLogDirectory(context.applicationContext).absolutePath }.getOrDefault("unavailable")
-        info(TAG_APP, "Logger initialized, enabled=$logsEnabled, dir=$resolvedLogDirectory")
+        val ctx = context.applicationContext
+        appContext = ctx
+
+        logsEnabled = readLoggingEnabled(ctx)
+        sessionStartedAtMs = System.currentTimeMillis()
+        sessionFileName = "session-${SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date(sessionStartedAtMs))}.txt"
+        resolvedLogDirectory = runCatching { resolveLogDirectory(ctx).absolutePath }.getOrDefault("unavailable")
+        purgeExpiredLogs(ctx)
+
+        ctx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .edit()
+            .putLong(KEY_SESSION_START_MS, sessionStartedAtMs)
+            .apply()
+
+        info(
+            TAG_APP,
+            "Logger initialized; sessionStart=$sessionStartedAtMs; dir=$resolvedLogDirectory; sdk=${Build.VERSION.SDK_INT}; device=${deviceName()}",
+        )
 
         val previous = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
-            error("CRASH", "Uncaught exception in ${thread.name}", throwable)
+            val crashAt = System.currentTimeMillis()
+            error("CRASH", "Uncaught exception in thread=${thread.name}", throwable)
+            markPendingCrash(ctx, crashAt)
             previous?.uncaughtException(thread, throwable)
         }
     }
@@ -60,6 +91,39 @@ object AppEventLogger {
         }
     }
 
+    fun markSessionClosed(totalContacts: Int, importedContacts: Int) {
+        info(
+            TAG_APP,
+            "Session closed; contactsTotal=$totalContacts; contactsImported=$importedContacts; sessionDurationMs=${System.currentTimeMillis() - sessionStartedAtMs}",
+        )
+    }
+
+    fun consumePendingCrashReport(context: Context): PendingCrashReport? {
+        val ctx = appContext ?: context.applicationContext
+        val prefs = ctx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val fileName = prefs.getString(KEY_PENDING_CRASH_FILE, null).orEmpty()
+        val startedAt = prefs.getLong(KEY_PENDING_CRASH_START, 0L)
+        val crashedAt = prefs.getLong(KEY_PENDING_CRASH_END, 0L)
+        val device = prefs.getString(KEY_PENDING_CRASH_DEVICE, deviceName()).orEmpty()
+        if (fileName.isBlank() || startedAt <= 0L || crashedAt <= 0L) return null
+
+        prefs.edit()
+            .remove(KEY_PENDING_CRASH_FILE)
+            .remove(KEY_PENDING_CRASH_START)
+            .remove(KEY_PENDING_CRASH_END)
+            .remove(KEY_PENDING_CRASH_DEVICE)
+            .apply()
+
+        val file = File(resolveLogDirectory(ctx), fileName)
+        if (!file.exists()) return null
+        return PendingCrashReport(
+            file = file,
+            sessionStartedAtMs = startedAt,
+            crashedAtMs = crashedAt,
+            deviceName = device,
+        )
+    }
+
     fun getCurrentLogDirectory(context: Context): String {
         val ctx = appContext ?: context.applicationContext
         if (resolvedLogDirectory == "unavailable") {
@@ -70,6 +134,7 @@ object AppEventLogger {
 
     fun listLogFiles(context: Context): List<File> {
         val ctx = appContext ?: context.applicationContext
+        purgeExpiredLogs(ctx)
         val dir = runCatching { resolveLogDirectory(ctx) }.getOrNull() ?: return emptyList()
         val files = dir.listFiles().orEmpty().filter { it.isFile && it.extension.equals("txt", ignoreCase = true) }
         return files.sortedByDescending { it.lastModified() }
@@ -79,11 +144,7 @@ object AppEventLogger {
         val file = listLogFiles(context).firstOrNull { it.name == fileName } ?: return null
         return runCatching {
             val text = file.readText()
-            if (text.length > maxChars) {
-                text.takeLast(maxChars)
-            } else {
-                text
-            }
+            if (text.length > maxChars) text.takeLast(maxChars) else text
         }.getOrNull()
     }
 
@@ -106,13 +167,25 @@ object AppEventLogger {
         write("ERROR", event, message, throwable, force = false)
     }
 
+    private fun markPendingCrash(context: Context, crashAtMs: Long) {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .edit()
+            .putString(KEY_PENDING_CRASH_FILE, sessionFileName)
+            .putLong(KEY_PENDING_CRASH_START, sessionStartedAtMs)
+            .putLong(KEY_PENDING_CRASH_END, crashAtMs)
+            .putString(KEY_PENDING_CRASH_DEVICE, deviceName())
+            .apply()
+    }
+
     private fun write(level: String, event: String, message: String, throwable: Throwable?, force: Boolean) {
         val context = appContext ?: return
         if (!force && !logsEnabled) return
         synchronized(lock) {
             runCatching {
+                purgeExpiredLogs(context)
                 val logFile = resolveLogFile(context)
                 resolvedLogDirectory = logFile.parentFile?.absolutePath ?: resolvedLogDirectory
+                val sanitized = sanitizeMessage(message)
                 val line = buildString {
                     append(timestamp())
                     append(" [")
@@ -120,7 +193,7 @@ object AppEventLogger {
                     append("] [")
                     append(event)
                     append("] ")
-                    append(message)
+                    append(sanitized)
                     append('\n')
                     if (throwable != null) {
                         append(throwable.javaClass.name)
@@ -139,9 +212,28 @@ object AppEventLogger {
         }
     }
 
+    private fun sanitizeMessage(raw: String): String {
+        var value = raw
+        value = value.replace(Regex("\\b[\\w._%+-]+@[\\w.-]+\\.[A-Za-z]{2,}\\b"), "<email>")
+        value = value.replace(Regex("\\+?\\d[\\d\\s()\\-]{5,}\\d"), "<number>")
+        return value
+    }
+
     private fun readLoggingEnabled(context: Context): Boolean {
         return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             .getBoolean(KEY_LOGS_ENABLED, true)
+    }
+
+    private fun purgeExpiredLogs(context: Context) {
+        val dir = runCatching { resolveLogDirectory(context) }.getOrNull() ?: return
+        val now = System.currentTimeMillis()
+        dir.listFiles().orEmpty()
+            .filter { it.isFile && it.extension.equals("txt", ignoreCase = true) }
+            .forEach { file ->
+                if (now - file.lastModified() > LOG_RETENTION_MS) {
+                    runCatching { file.delete() }
+                }
+            }
     }
 
     private fun resolveLogFile(context: Context): File {
@@ -167,6 +259,10 @@ object AppEventLogger {
             fallbackDir.mkdirs()
         }
         return fallbackDir
+    }
+
+    private fun deviceName(): String {
+        return "${Build.MANUFACTURER} ${Build.MODEL}".trim()
     }
 
     private fun timestamp(): String {

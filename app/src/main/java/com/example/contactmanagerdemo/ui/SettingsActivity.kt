@@ -56,9 +56,15 @@ class SettingsActivity : AppCompatActivity() {
             .setTitle(R.string.settings_clear_all_info_title)
             .setMessage(R.string.settings_clear_all_info_message)
             .setPositiveButton(R.string.action_delete) { _, _ ->
+                val contactsBefore = storage.getAllContacts().size
+                val groupsBefore = storage.getAvailableGroups().size
+                AppEventLogger.warn(
+                    "DATA",
+                    "Full reset requested by user; contactsBefore=$contactsBefore; groupsBefore=$groupsBefore",
+                )
                 storage.clearAllInfo()
-                AppEventLogger.clearAllLogs(this)
                 getSharedPreferences(DEV_PREFS_NAME, MODE_PRIVATE).edit().clear().apply()
+                AppEventLogger.info("DATA", "Full reset completed; logs preserved")
                 Toast.makeText(this, R.string.settings_clear_all_info_done, Toast.LENGTH_SHORT).show()
                 returnAction(ACTION_DATA_CLEARED)
             }

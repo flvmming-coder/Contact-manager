@@ -187,4 +187,16 @@
         android:background="@drawable/bg_dialog_input"
         android:popupBackground="@drawable/bg_dialog_surface" />
 
+    <EditText
+        android:id="@+id/inputCustomGroupTitle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:background="@drawable/bg_dialog_input"
+        android:hint="@string/hint_custom_group_title"
+        android:inputType="textCapWords"
+        android:textColor="@color/text_primary"
+        android:textColorHint="@color/text_secondary"
+        android:visibility="gone" />
+
 </LinearLayout>

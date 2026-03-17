@@ -1,4 +1,4 @@
-﻿# Contact Manager v0.18.1 (PRE-RELEASE)
+﻿# Contact Manager v0.18.1 (RELEASE)
 
 Причина обновления:
 - доработка управления данными и группами после сброса;

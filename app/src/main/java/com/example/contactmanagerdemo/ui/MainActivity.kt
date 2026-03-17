@@ -44,6 +44,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.SwitchCompat
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
 import androidx.core.widget.doAfterTextChanged
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -235,11 +236,17 @@ class MainActivity : AppCompatActivity() {
 
             migrateContactsIfNeeded()
             loadContactsAndRender()
+            promptCrashReportIfNeeded()
             AppEventLogger.info("APP", "MainActivity onCreate completed")
         } catch (t: Throwable) {
             AppEventLogger.error("CRASH", "MainActivity initialization failed", t)
             showStartupFallback()
         }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        AppEventLogger.info("APP", "MainActivity onStart; contactsTotal=${allContacts.size}; imported=${allContacts.count { it.isImported }}")
     }
 
     override fun onResume() {
@@ -248,7 +255,18 @@ class MainActivity : AppCompatActivity() {
         loadContactsAndRender()
     }
 
+    override fun onStop() {
+        AppEventLogger.info("APP", "MainActivity onStop; contactsTotal=${allContacts.size}; imported=${allContacts.count { it.isImported }}")
+        super.onStop()
+    }
+
     override fun onDestroy() {
+        if (isFinishing) {
+            AppEventLogger.markSessionClosed(
+                totalContacts = allContacts.size,
+                importedContacts = allContacts.count { it.isImported },
+            )
+        }
         mainHandler.removeCallbacks(adminHoldRunnable)
         super.onDestroy()
     }
@@ -1457,6 +1475,53 @@ class MainActivity : AppCompatActivity() {
         moveTaskToBack(true)
     }
 
+    private fun promptCrashReportIfNeeded() {
+        val report = AppEventLogger.consumePendingCrashReport(this) ?: return
+        val uri = runCatching {
+            FileProvider.getUriForFile(
+                this,
+                "$packageName.fileprovider",
+                report.file,
+            )
+        }.getOrNull()
+        if (uri == null) {
+            AppEventLogger.warn("CRASH", "Pending crash report found but attachment uri failed")
+            return
+        }
+
+        val started = formatLogTimestamp(report.sessionStartedAtMs)
+        val ended = formatLogTimestamp(report.crashedAtMs)
+        val body = getString(
+            R.string.crash_email_body,
+            report.deviceName,
+            started,
+            ended,
+        )
+        val subject = getString(R.string.crash_email_subject, report.deviceName)
+
+        val emailIntent = Intent(Intent.ACTION_SEND).apply {
+            type = "message/rfc822"
+            putExtra(Intent.EXTRA_EMAIL, arrayOf(DEVELOPER_SUPPORT_EMAIL))
+            putExtra(Intent.EXTRA_SUBJECT, subject)
+            putExtra(Intent.EXTRA_TEXT, body)
+            putExtra(Intent.EXTRA_STREAM, uri)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+
+        val chooser = Intent.createChooser(emailIntent, getString(R.string.crash_email_chooser))
+        val canHandle = emailIntent.resolveActivity(packageManager) != null
+        if (canHandle) {
+            AppEventLogger.info("CRASH", "Pending crash report prepared for support email")
+            runCatching { startActivity(chooser) }
+        } else {
+            AppEventLogger.warn("CRASH", "No email app found for crash report")
+        }
+    }
+
+    private fun formatLogTimestamp(value: Long): String {
+        return SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date(value))
+    }
+
     private fun performDeviceContactsImport(): Int {
         val existing = storage.getAllContacts().toMutableList()
         val dedupKeys = existing.mapTo(mutableSetOf()) { contactKey(it.name, it.lastName, it.phone) }
@@ -1902,6 +1967,7 @@ class MainActivity : AppCompatActivity() {
         val lineKurenkov = getString(R.string.developers_line_kurenkov)
         val lineKozin = getString(R.string.developers_line_kozin)
         val lineProject = getString(R.string.developers_line_project)
+        val lineSupport = getString(R.string.developers_support_line)
 
         val builder = SpannableStringBuilder()
         builder.append(getString(R.string.developers_dialog_title))
@@ -1927,6 +1993,20 @@ class MainActivity : AppCompatActivity() {
         )
         builder.append('\n')
         builder.append(lineProject)
+        builder.append('\n')
+        val supportStart = builder.length
+        builder.append(lineSupport)
+        val emailStartOffset = lineSupport.indexOf(DEVELOPER_SUPPORT_EMAIL)
+        if (emailStartOffset >= 0) {
+            val start = supportStart + emailStartOffset
+            val end = start + DEVELOPER_SUPPORT_EMAIL.length
+            builder.setSpan(
+                DeveloperLinkSpan("mailto:$DEVELOPER_SUPPORT_EMAIL"),
+                start,
+                end,
+                Spanned.SPAN_EXCLUSIVE_EXCLUSIVE,
+            )
+        }
 
         val textView = TextView(this).apply {
             text = builder
@@ -2213,5 +2293,6 @@ class MainActivity : AppCompatActivity() {
         private const val KEY_NETWORK_ACCOUNT = "network_mode_account"
         private const val KEY_AVATAR_COLOR_EDITOR_ENABLED = "avatar_color_editor_enabled"
         private const val KEY_SERVICE_GROUP_VISIBLE = "service_group_visible"
+        private const val DEVELOPER_SUPPORT_EMAIL = "flvmming.dev@gmail.com"
     }
 }
