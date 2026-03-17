@@ -100,14 +100,21 @@
     <string name="admin_download_description">\u041f\u043e\u0434\u0433\u043e\u0442\u043e\u0432\u043a\u0430 APK \u0434\u043b\u044f \u0443\u0441\u0442\u0430\u043d\u043e\u0432\u043a\u0438</string>
     <string name="admin_download_started">\u0417\u0430\u0433\u0440\u0443\u0437\u043a\u0430 \u043d\u0430\u0447\u0430\u0442\u0430: %1$s</string>
     <string name="admin_download_failed">\u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u0437\u0430\u043f\u0443\u0441\u0442\u0438\u0442\u044c \u0437\u0430\u0433\u0440\u0443\u0437\u043a\u0443</string>
+    <string name="admin_download_install_started">\u0417\u0430\u043f\u0443\u0449\u0435\u043d \u0443\u0441\u0442\u0430\u043d\u043e\u0432\u0449\u0438\u043a \u0432\u0435\u0440\u0441\u0438\u0438 %1$s</string>
+    <string name="admin_download_install_failed">\u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u043e\u0442\u043a\u0440\u044b\u0442\u044c \u0443\u0441\u0442\u0430\u043d\u043e\u0432\u0449\u0438\u043a APK</string>
     <string name="admin_no_internet_title">\u041d\u0435\u0442 \u0438\u043d\u0442\u0435\u0440\u043d\u0435\u0442\u0430</string>
     <string name="admin_no_internet_message">\u0412\u043a\u043b\u044e\u0447\u0438\u0442\u0435 \u0438\u043d\u0442\u0435\u0440\u043d\u0435\u0442 \u0438 \u043f\u043e\u043f\u0440\u043e\u0431\u0443\u0439\u0442\u0435 \u0441\u043d\u043e\u0432\u0430.</string>
     <string name="admin_action_try_again">\u041f\u043e\u043f\u0440\u043e\u0431\u043e\u0432\u0430\u0442\u044c \u0441\u043d\u043e\u0432\u0430</string>
+    <string name="admin_logs_clear_files">\u041e\u0447\u0438\u0441\u0442\u0438\u0442\u044c \u0444\u0430\u0439\u043b\u044b</string>
+    <string name="admin_logs_clear_title">\u041e\u0447\u0438\u0441\u0442\u043a\u0430 \u0444\u0430\u0439\u043b\u043e\u0432 \u043b\u043e\u0433\u0430</string>
+    <string name="admin_logs_pin_hint">\u0412\u0432\u0435\u0434\u0438\u0442\u0435 PIN-\u043a\u043e\u0434</string>
+    <string name="admin_logs_pin_invalid">\u041d\u0435\u0432\u0435\u0440\u043d\u044b\u0439 PIN-\u043a\u043e\u0434</string>
+    <string name="admin_logs_clear_done">\u0424\u0430\u0439\u043b\u044b \u043b\u043e\u0433\u043e\u0432 \u043e\u0447\u0438\u0449\u0435\u043d\u044b</string>
     <string name="admin_developers_button">Developers</string>
     <string name="developers_dialog_title">Developers</string>
     <string name="developers_line_kurenkov">Kurenkov E. E. — Back-end, A&amp;R, Kotlin dev</string>
     <string name="developers_line_kozin">Kozin S. V. — UI/UX designer, QA, product manager</string>
-    <string name="developers_line_project">Project for NUST MISIS filiale of Novotroitsk</string>
+    <string name="developers_line_project">Non-commercial project for the NUST MISIS branch in Novotroitsk</string>
     <string name="developers_support_line">Support with dev: flvmming.dev@gmail.com</string>
 
     <string name="selection_count_default">\u0412\u044b\u0431\u0440\u0430\u043d\u043e: 0</string>
@@ -147,8 +154,18 @@
     <string name="settings_change_theme">\u0421\u043c\u0435\u043d\u0438\u0442\u044c \u0442\u0435\u043c\u0443</string>
     <string name="settings_trash">\u041a\u043e\u0440\u0437\u0438\u043d\u0430</string>
     <string name="settings_theme_title">\u0422\u0435\u043c\u0430 \u043f\u0440\u0438\u043b\u043e\u0436\u0435\u043d\u0438\u044f</string>
+    <string name="settings_theme_mode_branch">\u041e\u0441\u043d\u043e\u0432\u043d\u0430\u044f \u0442\u0435\u043c\u0430 (\u0441\u0432\u0435\u0442\u043b\u0430\u044f/\u0442\u0435\u043c\u043d\u0430\u044f/\u0441\u0438\u0441\u0442\u0435\u043c\u043d\u0430\u044f)</string>
+    <string name="settings_theme_accent_branch">\u0426\u0432\u0435\u0442 \u0430\u043a\u0442\u0438\u0432\u043d\u044b\u0445 \u043a\u043d\u043e\u043f\u043e\u043a</string>
     <string name="theme_light">\u0421\u0432\u0435\u0442\u043b\u0430\u044f</string>
     <string name="theme_dark">\u0422\u0435\u043c\u043d\u0430\u044f</string>
+    <string name="theme_system">\u0421\u0438\u0441\u0442\u0435\u043c\u043d\u0430\u044f</string>
+    <string name="theme_accent_yellow">\u0416\u0435\u043b\u0442\u0430\u044f</string>
+    <string name="theme_accent_light_gray">\u0421\u0432\u0435\u0442\u043b\u043e-\u0441\u0435\u0440\u0430\u044f</string>
+    <string name="theme_accent_lilac">\u0421\u0438\u0440\u0435\u043d\u0435\u0432\u0430\u044f</string>
+    <string name="theme_accent_blue_cyan">\u0421\u0438\u043d\u0435-\u0433\u043e\u043b\u0443\u0431\u0430\u044f</string>
+    <string name="theme_accent_custom">\u041d\u0430\u0441\u0442\u0440\u0430\u0438\u0432\u0430\u0435\u043c\u0430\u044f</string>
+    <string name="theme_accent_custom_dialog_title">\u041d\u0430\u0441\u0442\u0440\u043e\u0439\u043a\u0430 \u0441\u0432\u043e\u0438\u0445 \u0446\u0432\u0435\u0442\u043e\u0432 (\u0434\u0432\u0430 HEX)</string>
+    <string name="theme_accent_custom_error">\u041d\u0435\u043a\u043e\u0440\u0440\u0435\u043a\u0442\u043d\u044b\u0439 HEX-\u0446\u0432\u0435\u0442</string>
     <string name="settings_theme_saved">\u0422\u0435\u043c\u0430 \u043f\u0440\u0438\u043c\u0435\u043d\u0435\u043d\u0430</string>
     <string name="settings_clear_all">\u0423\u0434\u0430\u043b\u0438\u0442\u044c \u0432\u0441\u044e \u0438\u043d\u0444\u043e\u0440\u043c\u0430\u0446\u0438\u044e</string>
     <string name="settings_clear_all_info_title">\u0423\u0434\u0430\u043b\u0438\u0442\u044c \u0432\u0441\u044e \u0438\u043d\u0444\u043e\u0440\u043c\u0430\u0446\u0438\u044e</string>
@@ -168,6 +185,13 @@
     <string name="trash_clear_done">\u041a\u043e\u0440\u0437\u0438\u043d\u0430 \u043e\u0447\u0438\u0449\u0435\u043d\u0430</string>
     <string name="trash_restore_done">\u041a\u043e\u043d\u0442\u0430\u043a\u0442 \u0432\u043e\u0441\u0441\u0442\u0430\u043d\u043e\u0432\u043b\u0435\u043d</string>
     <string name="trash_delete_forever_done">\u041a\u043e\u043d\u0442\u0430\u043a\u0442 \u0443\u0434\u0430\u043b\u0435\u043d \u043d\u0430\u0432\u0441\u0435\u0433\u0434\u0430</string>
+    <string name="trash_details_phone">\u0422\u0435\u043b\u0435\u0444\u043e\u043d: %1$s</string>
+    <string name="trash_details_email">Email: %1$s</string>
+    <string name="trash_details_address">\u0410\u0434\u0440\u0435\u0441: %1$s</string>
+    <string name="trash_details_birthday">\u0414\u0435\u043d\u044c \u0440\u043e\u0436\u0434\u0435\u043d\u0438\u044f: %1$s</string>
+    <string name="trash_details_group">\u0413\u0440\u0443\u043f\u043f\u0430: %1$s</string>
+    <string name="trash_details_comment">\u041a\u043e\u043c\u043c\u0435\u043d\u0442\u0430\u0440\u0438\u0439: %1$s</string>
+    <string name="trash_details_edit_hint">\u0418\u0437\u043c\u0435\u043d\u0435\u043d\u0438\u0435 \u043d\u0435\u0434\u043e\u0441\u0442\u0443\u043f\u043d\u043e. \u0414\u043b\u044f \u043f\u0440\u0430\u0432\u043e\u043a \u0441\u043d\u0430\u0447\u0430\u043b\u0430 \u0432\u043e\u0441\u0441\u0442\u0430\u043d\u043e\u0432\u0438\u0442\u0435 \u043a\u043e\u043d\u0442\u0430\u043a\u0442.</string>
     <string name="settings_export_done">\u0424\u0430\u0439\u043b VCF \u0441\u043e\u0445\u0440\u0430\u043d\u0435\u043d</string>
     <string name="settings_export_error">\u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u044d\u043a\u0441\u043f\u043e\u0440\u0442\u0438\u0440\u043e\u0432\u0430\u0442\u044c VCF</string>
 

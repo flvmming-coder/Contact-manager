@@ -35,29 +35,13 @@
             android:textStyle="bold" />
     </LinearLayout>
 
-    <LinearLayout
+    <Button
+        android:id="@+id/btnTrashClear"
+        style="@style/Widget.ContactManager.GradientButton.Small"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="10dp"
-        android:orientation="horizontal">
-
-        <Button
-            android:id="@+id/btnTrashRetention"
-            style="@style/Widget.ContactManager.GradientButton.Small"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="@string/trash_action_retention" />
-
-        <Button
-            android:id="@+id/btnTrashClear"
-            style="@style/Widget.ContactManager.GradientButton.Small"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="8dp"
-            android:layout_weight="1"
-            android:text="@string/trash_action_clear" />
-    </LinearLayout>
+        android:text="@string/trash_action_clear" />
 
     <ListView
         android:id="@+id/listTrash"

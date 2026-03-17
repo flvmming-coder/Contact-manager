@@ -143,7 +143,12 @@ class ContactEditorActivity : AppCompatActivity() {
         inputAddress.setText(contact.address.orEmpty())
         inputBirthday.setText(contact.birthday.orEmpty())
         inputComment.setText(contact.comment.orEmpty())
-        val index = editGroupCodes.indexOf(contact.group).takeIf { it >= 0 }
+        val normalizedGroup = if (contact.group == ContactPrefsStorage.GROUP_OTHER) {
+            ContactPrefsStorage.GROUP_UNASSIGNED
+        } else {
+            contact.group
+        }
+        val index = editGroupCodes.indexOf(normalizedGroup).takeIf { it >= 0 }
             ?: editGroupCodes.indexOf(ContactPrefsStorage.GROUP_UNASSIGNED).takeIf { it >= 0 }
             ?: 0
         spinnerGroup.setSelection(index)
@@ -163,11 +168,21 @@ class ContactEditorActivity : AppCompatActivity() {
         }
         val customGroupTitle = inputCustomGroupTitle.text.toString().trim()
 
-        if (groupCode == ContactPrefsStorage.GROUP_OTHER && customGroupTitle.isNotBlank()) {
-            groupCode = storage.ensureGroupByTitle(customGroupTitle)
-        }
-
         var hasError = false
+        if (groupCode == ContactPrefsStorage.GROUP_OTHER) {
+            if (customGroupTitle.isBlank()) {
+                inputCustomGroupTitle.error = getString(R.string.error_required)
+                hasError = true
+            } else {
+                val created = storage.createGroup(customGroupTitle)
+                if (created == null) {
+                    inputCustomGroupTitle.error = getString(R.string.group_manage_name_invalid)
+                    hasError = true
+                } else {
+                    groupCode = created
+                }
+            }
+        }
         if (name.isBlank()) {
             inputName.error = getString(R.string.error_required)
             hasError = true
@@ -291,7 +306,30 @@ class ContactEditorActivity : AppCompatActivity() {
     private fun setupPhoneInputMask() {
         inputPhone.addTextChangedListener(object : TextWatcher {
             private var editing = false
-            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
+            private var deleteAcrossSeparator = false
+            private var deleteDigitIndex = -1
+
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {
+                if (editing) return
+                val current = s?.toString().orEmpty()
+                if (count <= 0 || after > 0) {
+                    deleteAcrossSeparator = false
+                    deleteDigitIndex = -1
+                    return
+                }
+                val end = (start + count).coerceAtMost(current.length)
+                val removed = if (start in 0 until end) current.substring(start, end) else ""
+                val removedOnlyMaskChars = removed.isNotEmpty() && removed.none { it.isDigit() }
+                if (!removedOnlyMaskChars) {
+                    deleteAcrossSeparator = false
+                    deleteDigitIndex = -1
+                    return
+                }
+                val digitsBefore = localDigitsBeforeCursor(current, start)
+                deleteAcrossSeparator = true
+                deleteDigitIndex = (digitsBefore - 1).coerceAtLeast(0)
+            }
+
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) = Unit
             override fun afterTextChanged(s: Editable?) {
                 if (editing) return
@@ -300,21 +338,25 @@ class ContactEditorActivity : AppCompatActivity() {
                 if (raw.any { it.isLetter() }) return
                 if (raw.startsWith("+") && !raw.startsWith("+7")) return
                 editing = true
-                val digitsOnly = raw.filter { it.isDigit() }.let { digitsRaw ->
-                    var digits = digitsRaw
-                    if (raw.startsWith("+7") && digits.startsWith("7")) {
-                        digits = digits.drop(1)
-                    } else if (digits.length > 10 && (digits.startsWith("7") || digits.startsWith("8"))) {
-                        digits = digits.drop(1)
-                    }
-                    when {
-                        digits.length > 10 -> digits.take(10)
-                        else -> digits
-                    }
+                val sourceCursor = inputPhone.selectionStart.coerceAtLeast(0)
+                val localCursorDigitsBefore = localDigitsBeforeCursor(raw, sourceCursor)
+
+                var digitsOnly = extractRuLocalDigits(raw)
+                if (deleteAcrossSeparator && deleteDigitIndex in digitsOnly.indices) {
+                    digitsOnly = digitsOnly.removeRange(deleteDigitIndex, deleteDigitIndex + 1)
                 }
                 val formatted = formatRuMaskFromDigits(digitsOnly)
                 s?.replace(0, s.length, formatted)
-                inputPhone.setSelection(formatted.length.coerceAtMost(inputPhone.text.length))
+                val targetLocalDigits = if (deleteAcrossSeparator) {
+                    deleteDigitIndex.coerceAtLeast(0)
+                } else {
+                    localCursorDigitsBefore.coerceIn(0, digitsOnly.length)
+                }
+                val targetCursor = cursorForLocalDigits(formatted, targetLocalDigits)
+                inputPhone.setSelection(targetCursor.coerceIn(0, inputPhone.text.length))
+
+                deleteAcrossSeparator = false
+                deleteDigitIndex = -1
                 editing = false
             }
         })
@@ -342,6 +384,44 @@ class ContactEditorActivity : AppCompatActivity() {
             builder.append(digits.substring(8, minOf(10, digits.length)))
         }
         return builder.toString()
+    }
+
+    private fun extractRuLocalDigits(raw: String): String {
+        val digitsRaw = raw.filter { it.isDigit() }
+        var digits = digitsRaw
+        if (raw.startsWith("+7") && digits.startsWith("7")) {
+            digits = digits.drop(1)
+        } else if (digits.length > 10 && (digits.startsWith("7") || digits.startsWith("8"))) {
+            digits = digits.drop(1)
+        }
+        return digits.take(10)
+    }
+
+    private fun localDigitsBeforeCursor(text: String, cursor: Int): Int {
+        val safeCursor = cursor.coerceIn(0, text.length)
+        val prefix = text.take(safeCursor)
+        val digitsBefore = prefix.count { it.isDigit() }
+        val startsWithCountryCode = text.startsWith("+7")
+        return if (startsWithCountryCode) (digitsBefore - 1).coerceAtLeast(0) else digitsBefore
+    }
+
+    private fun cursorForLocalDigits(formatted: String, localDigits: Int): Int {
+        if (localDigits <= 0) return "+7".length.coerceAtMost(formatted.length)
+        var localSeen = 0
+        var countrySkipped = false
+        val expectCountry = formatted.startsWith("+7")
+        formatted.forEachIndexed { index, ch ->
+            if (!ch.isDigit()) return@forEachIndexed
+            if (expectCountry && !countrySkipped) {
+                countrySkipped = true
+                return@forEachIndexed
+            }
+            localSeen += 1
+            if (localSeen >= localDigits) {
+                return (index + 1).coerceAtMost(formatted.length)
+            }
+        }
+        return formatted.length
     }
 
     private fun setupBirthdayInputMask() {

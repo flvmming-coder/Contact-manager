@@ -13,11 +13,20 @@ class ContactPrefsStorage(context: Context) {
     private val prefs = appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
     fun getAvailableGroups(): List<String> {
-        return getStoredGroups().map { it.code }
+        return getStoredGroups()
+            .asSequence()
+            .filterNot { it.code == GROUP_OTHER }
+            .map { it.code }
+            .distinct()
+            .toList()
     }
 
     fun getEditableGroups(): List<String> {
-        return listOf(GROUP_UNASSIGNED) + getAvailableGroups()
+        return buildList {
+            add(GROUP_UNASSIGNED)
+            addAll(getAvailableGroups())
+            add(GROUP_OTHER) // Virtual option for creating a custom group from editor.
+        }
     }
 
     fun getFilterGroups(): List<String> {
@@ -28,6 +37,7 @@ class ContactPrefsStorage(context: Context) {
         return when (code) {
             GROUP_ALL -> appContext.getString(R.string.group_all)
             GROUP_UNASSIGNED -> appContext.getString(R.string.group_unassigned)
+            GROUP_OTHER -> appContext.getString(R.string.group_other)
             GROUP_SERVICE -> appContext.getString(R.string.group_service)
             else -> getStoredGroups().firstOrNull { it.code == code }?.title
                 ?: appContext.getString(R.string.group_unassigned)
@@ -35,12 +45,15 @@ class ContactPrefsStorage(context: Context) {
     }
 
     fun getGroupsForManage(): List<Pair<String, String>> {
-        return getStoredGroups().map { it.code to it.title }
+        return getStoredGroups()
+            .filterNot { it.code == GROUP_OTHER }
+            .map { it.code to it.title }
     }
 
     fun ensureGroupByTitle(rawTitle: String): String {
         val title = rawTitle.trim()
         if (title.isBlank()) return GROUP_UNASSIGNED
+        if (isVirtualOtherTitle(title)) return GROUP_UNASSIGNED
 
         val groups = getStoredGroups().toMutableList()
         val existing = groups.firstOrNull { normalizeTitle(it.title) == normalizeTitle(title) }
@@ -55,6 +68,7 @@ class ContactPrefsStorage(context: Context) {
     fun createGroup(rawTitle: String): String? {
         val title = rawTitle.trim()
         if (title.isBlank()) return null
+        if (isVirtualOtherTitle(title)) return null
         return ensureGroupByTitle(title)
     }
 
@@ -83,6 +97,7 @@ class ContactPrefsStorage(context: Context) {
     fun renameGroup(code: String, rawTitle: String): Boolean {
         val title = rawTitle.trim()
         if (title.isBlank()) return false
+        if (isVirtualOtherTitle(title)) return false
         if (code == GROUP_ALL || code == GROUP_UNASSIGNED || code == GROUP_SERVICE) return false
 
         val groups = getStoredGroups().toMutableList()
@@ -188,7 +203,7 @@ class ContactPrefsStorage(context: Context) {
         prefs.edit().putString(KEY_CONTACTS, "[]").apply()
     }
 
-    fun moveContactToTrash(contactId: Long, retentionDays: Int): Boolean {
+    fun moveContactToTrash(contactId: Long, @Suppress("UNUSED_PARAMETER") retentionDays: Int): Boolean {
         val contacts = getAllContacts()
         val target = contacts.firstOrNull { it.id == contactId } ?: return false
         val updatedContacts = contacts.filterNot { it.id == contactId }
@@ -198,7 +213,7 @@ class ContactPrefsStorage(context: Context) {
             DeletedContactEntry(
                 contact = target,
                 deletedAtMs = System.currentTimeMillis(),
-                retentionDays = retentionDays.coerceIn(7, 30),
+                retentionDays = TRASH_RETENTION_DAYS_FIXED,
             ),
         )
         saveAllContacts(updatedContacts)
@@ -206,7 +221,7 @@ class ContactPrefsStorage(context: Context) {
         return true
     }
 
-    fun moveContactsToTrash(contactIds: Set<Long>, retentionDays: Int): Int {
+    fun moveContactsToTrash(contactIds: Set<Long>, @Suppress("UNUSED_PARAMETER") retentionDays: Int): Int {
         if (contactIds.isEmpty()) return 0
         val contacts = getAllContacts()
         val toTrash = contacts.filter { contactIds.contains(it.id) }
@@ -219,7 +234,7 @@ class ContactPrefsStorage(context: Context) {
                 DeletedContactEntry(
                     contact = contact,
                     deletedAtMs = System.currentTimeMillis(),
-                    retentionDays = retentionDays.coerceIn(7, 30),
+                    retentionDays = TRASH_RETENTION_DAYS_FIXED,
                 ),
             )
         }
@@ -267,29 +282,26 @@ class ContactPrefsStorage(context: Context) {
     }
 
     fun getTrashRetentionDays(): Int {
-        return prefs.getInt(KEY_TRASH_RETENTION_DAYS, 30).coerceIn(7, 30)
+        return TRASH_RETENTION_DAYS_FIXED
     }
 
-    fun setTrashRetentionDays(days: Int) {
-        val normalized = if (days <= 7) 7 else 30
-        prefs.edit().putInt(KEY_TRASH_RETENTION_DAYS, normalized).apply()
+    fun setTrashRetentionDays(@Suppress("UNUSED_PARAMETER") days: Int) {
+        prefs.edit().putInt(KEY_TRASH_RETENTION_DAYS, TRASH_RETENTION_DAYS_FIXED).apply()
     }
 
     fun clearAllInfo() {
-        val groupsAfterReset = JSONArray().apply {
-            put(
-                JSONObject().apply {
-                    put("code", GROUP_OTHER)
-                    put("title", appContext.getString(R.string.group_other))
-                },
-            )
-        }
         prefs.edit()
             .putString(KEY_CONTACTS, "[]")
             .putString(KEY_TRASH, "[]")
-            .putString(KEY_GROUPS, groupsAfterReset.toString())
-            .putInt(KEY_TRASH_RETENTION_DAYS, 30)
+            .putString(KEY_GROUPS, "[]")
+            .putInt(KEY_TRASH_RETENTION_DAYS, TRASH_RETENTION_DAYS_FIXED)
             .apply()
+    }
+
+    private fun ensureGroupsInitialized() {
+        if (!prefs.contains(KEY_GROUPS)) {
+            saveStoredGroups(defaultGroups())
+        }
     }
 
     private fun parseContactsSafely(raw: String): MutableList<Contact> {
@@ -370,19 +382,14 @@ class ContactPrefsStorage(context: Context) {
         )
     }
 
-    private fun ensureGroupsInitialized() {
-        if (prefs.contains(KEY_GROUPS)) return
-        saveStoredGroups(defaultGroups())
-    }
-
     private fun getStoredGroups(): List<GroupDef> {
-        ensureGroupsInitialized()
-        val raw = prefs.getString(KEY_GROUPS, null).orEmpty()
-        if (raw.isBlank()) {
+        val raw = prefs.getString(KEY_GROUPS, null)
+        if (raw == null) {
             val defaults = defaultGroups()
             saveStoredGroups(defaults)
             return defaults
         }
+        if (raw.isBlank()) return emptyList()
         return runCatching {
             val parsed = mutableListOf<GroupDef>()
             val array = JSONArray(raw)
@@ -393,11 +400,11 @@ class ContactPrefsStorage(context: Context) {
                 if (code.isBlank() || title.isBlank()) continue
                 parsed.add(GroupDef(code = code, title = title))
             }
-            if (parsed.isEmpty()) defaultGroups() else parsed
+            parsed
         }.getOrElse {
             defaultGroups()
         }.also { groups ->
-            if (groups.isNotEmpty()) saveStoredGroups(groups)
+            saveStoredGroups(groups)
         }
     }
 
@@ -425,7 +432,6 @@ class ContactPrefsStorage(context: Context) {
             GroupDef(GROUP_FAMILY, appContext.getString(R.string.group_family)),
             GroupDef(GROUP_FRIENDS, appContext.getString(R.string.group_friends)),
             GroupDef(GROUP_WORK, appContext.getString(R.string.group_work)),
-            GroupDef(GROUP_OTHER, appContext.getString(R.string.group_other)),
         )
     }
 
@@ -445,7 +451,8 @@ class ContactPrefsStorage(context: Context) {
                 if (id <= 0L || name.isBlank() || phone.isBlank()) continue
 
                 val deletedAt = obj.optLong("deletedAtMs", 0L)
-                val retentionDays = obj.optInt("retentionDays", 30).coerceIn(7, 30)
+                val retentionDays = obj.optInt("retentionDays", TRASH_RETENTION_DAYS_FIXED)
+                    .coerceIn(TRASH_RETENTION_DAYS_FIXED, TRASH_RETENTION_DAYS_FIXED)
                 if (deletedAt <= 0L) continue
 
                 result.add(
@@ -568,6 +575,10 @@ class ContactPrefsStorage(context: Context) {
         return value.trim().lowercase(Locale.getDefault())
     }
 
+    private fun isVirtualOtherTitle(value: String): Boolean {
+        return normalizeTitle(value) == normalizeTitle(appContext.getString(R.string.group_other))
+    }
+
     private fun repairMojibake(value: String): String {
         if (value.isBlank()) return value
         val looksBroken = value.contains('\u00D0') || value.contains('\u00D1') || value.contains('\u00C3') || value.contains('\uFFFD')
@@ -607,5 +618,6 @@ class ContactPrefsStorage(context: Context) {
         const val GROUP_WORK = "work"
         const val GROUP_OTHER = "other"
         const val GROUP_SERVICE = "service"
+        private const val TRASH_RETENTION_DAYS_FIXED = 30
     }
 }

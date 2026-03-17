@@ -2,9 +2,11 @@ package com.example.contactmanagerdemo.ui
 
 import android.Manifest
 import android.app.DatePickerDialog
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.app.DownloadManager
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.database.Cursor
 import android.graphics.Color
@@ -28,6 +30,7 @@ import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
+import android.view.inputmethod.InputMethodManager
 import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.EditText
@@ -60,6 +63,7 @@ import com.example.contactmanagerdemo.core.UpdateChecker
 import com.example.contactmanagerdemo.data.Contact
 import com.example.contactmanagerdemo.data.ContactPrefsStorage
 import com.example.contactmanagerdemo.data.DeletedContactEntry
+import java.io.File
 import java.io.OutputStreamWriter
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -88,6 +92,9 @@ class MainActivity : AppCompatActivity() {
     private var selectedGroupCode: String = ContactPrefsStorage.GROUP_ALL
     private val groupViews: MutableMap<String, TextView> = linkedMapOf()
     private val mainHandler = Handler(Looper.getMainLooper())
+    private var pendingApkDownloadId: Long = -1L
+    private var pendingApkVersionName: String = ""
+    private var isDownloadReceiverRegistered = false
     private var adminHoldTriggered = false
     private var adminPanelActivated = false
     private val devPrefs by lazy { getSharedPreferences(DEV_PREFS_NAME, Context.MODE_PRIVATE) }
@@ -97,6 +104,17 @@ class MainActivity : AppCompatActivity() {
         adminHoldTriggered = true
         AppEventLogger.info("ADMIN", "Developer panel requested by long press")
         showAdminPanel()
+    }
+    private val downloadCompleteReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action != DownloadManager.ACTION_DOWNLOAD_COMPLETE) return
+            val downloadId = intent.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1L)
+            if (downloadId <= 0L || downloadId != pendingApkDownloadId) return
+            AppEventLogger.info("UPDATE", "APK download completed, id=$downloadId")
+            promptInstallDownloadedApk(downloadId, pendingApkVersionName)
+            pendingApkDownloadId = -1L
+            pendingApkVersionName = ""
+        }
     }
     private val requestContactsPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
@@ -216,9 +234,13 @@ class MainActivity : AppCompatActivity() {
             )
             recyclerView.adapter = adapter
 
-            findViewById<Button>(R.id.btnSelectionGroup).setOnClickListener { showBulkAssignGroupDialog() }
-            findViewById<Button>(R.id.btnSelectionDelete).setOnClickListener { showBulkDeleteDialog() }
-            findViewById<Button>(R.id.btnSelectionCancel).setOnClickListener { clearSelectionMode() }
+            val btnSelectionGroup = findViewById<Button>(R.id.btnSelectionGroup)
+            val btnSelectionDelete = findViewById<Button>(R.id.btnSelectionDelete)
+            val btnSelectionCancel = findViewById<Button>(R.id.btnSelectionCancel)
+            btnSelectionGroup.setOnClickListener { showBulkAssignGroupDialog() }
+            btnSelectionDelete.setOnClickListener { showBulkDeleteDialog() }
+            btnSelectionCancel.setOnClickListener { clearSelectionMode() }
+            applyAccentUi()
             findViewById<ImageButton>(R.id.btnGroupSettings).setOnClickListener { openGroupManagementScreen() }
 
             setupFilterGroups()
@@ -246,17 +268,32 @@ class MainActivity : AppCompatActivity() {
 
     override fun onStart() {
         super.onStart()
+        if (!isDownloadReceiverRegistered) {
+            val filter = IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE)
+            ContextCompat.registerReceiver(
+                this,
+                downloadCompleteReceiver,
+                filter,
+                ContextCompat.RECEIVER_NOT_EXPORTED,
+            )
+            isDownloadReceiverRegistered = true
+        }
         AppEventLogger.info("APP", "MainActivity onStart; contactsTotal=${allContacts.size}; imported=${allContacts.count { it.isImported }}")
     }
 
     override fun onResume() {
         super.onResume()
         AppEventLogger.info("APP", "MainActivity onResume")
+        applyAccentUi()
         loadContactsAndRender()
     }
 
     override fun onStop() {
         AppEventLogger.info("APP", "MainActivity onStop; contactsTotal=${allContacts.size}; imported=${allContacts.count { it.isImported }}")
+        if (isDownloadReceiverRegistered) {
+            runCatching { unregisterReceiver(downloadCompleteReceiver) }
+            isDownloadReceiverRegistered = false
+        }
         super.onStop()
     }
 
@@ -375,8 +412,7 @@ class MainActivity : AppCompatActivity() {
         )
         buttonIds.forEach { id ->
             val button = dialog.getButton(id) ?: return@forEach
-            button.background = ContextCompat.getDrawable(this, R.drawable.bg_button_gradient_rect)
-            button.setTextColor(0xFF0F172A.toInt())
+            ThemeManager.applyGradientBackground(button, cornerDp = 12f)
             button.isAllCaps = false
             button.textSize = 12f
             button.minHeight = dp(34)
@@ -386,6 +422,18 @@ class MainActivity : AppCompatActivity() {
                 lp.marginStart = dp(4)
                 lp.marginEnd = dp(4)
                 button.layoutParams = lp
+            }
+        }
+    }
+
+    private fun applyAccentUi() {
+        listOf(
+            R.id.btnSelectionGroup,
+            R.id.btnSelectionDelete,
+            R.id.btnSelectionCancel,
+        ).forEach { id ->
+            (findViewById<View>(id) as? Button)?.let { button ->
+                ThemeManager.applyGradientBackground(button, cornerDp = 12f)
             }
         }
     }
@@ -1993,7 +2041,7 @@ class MainActivity : AppCompatActivity() {
         )
         builder.append('\n')
         builder.append(lineProject)
-        builder.append('\n')
+        builder.append("\n\n")
         val supportStart = builder.length
         builder.append(lineSupport)
         val emailStartOffset = lineSupport.indexOf(DEVELOPER_SUPPORT_EMAIL)
@@ -2039,6 +2087,9 @@ class MainActivity : AppCompatActivity() {
                 val fileName = names.getOrNull(which) ?: return@setItems
                 showLogContentDialog(fileName)
             }
+            .setPositiveButton(R.string.admin_logs_clear_files) { _, _ ->
+                requestLogsClearWithPin()
+            }
             .setNegativeButton(R.string.action_cancel, null)
             .create()
         dialog.show()
@@ -2074,6 +2125,43 @@ class MainActivity : AppCompatActivity() {
             .create()
         dialog.show()
         styleDialogButtons(dialog)
+    }
+
+    private fun requestLogsClearWithPin() {
+        val input = EditText(this).apply {
+            hint = getString(R.string.admin_logs_pin_hint)
+            inputType = android.text.InputType.TYPE_CLASS_NUMBER or
+                android.text.InputType.TYPE_NUMBER_VARIATION_PASSWORD
+            setTextColor(ContextCompat.getColor(this@MainActivity, R.color.text_primary))
+            setHintTextColor(ContextCompat.getColor(this@MainActivity, R.color.text_secondary))
+            background = ContextCompat.getDrawable(this@MainActivity, R.drawable.bg_dialog_input)
+            setPadding(dp(12), dp(10), dp(12), dp(10))
+        }
+
+        val dialog = AlertDialog.Builder(this)
+            .setTitle(R.string.admin_logs_clear_title)
+            .setView(input)
+            .setPositiveButton(R.string.action_ok) { _, _ ->
+                val pin = input.text.toString().trim()
+                if (pin == LOG_CLEAR_PIN) {
+                    AppEventLogger.clearAllLogs(this)
+                    AppEventLogger.info("ADMIN", "Logs cleared by PIN")
+                    Toast.makeText(this, R.string.admin_logs_clear_done, Toast.LENGTH_SHORT).show()
+                } else {
+                    hideKeyboard(input)
+                    AppEventLogger.warn("SECURITY", "Invalid PIN entered while trying to clear logs")
+                    Toast.makeText(this, R.string.admin_logs_pin_invalid, Toast.LENGTH_SHORT).show()
+                }
+            }
+            .setNegativeButton(R.string.action_cancel, null)
+            .create()
+        dialog.show()
+        styleDialogButtons(dialog)
+    }
+
+    private fun hideKeyboard(target: View) {
+        val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
+        imm?.hideSoftInputFromWindow(target.windowToken, 0)
     }
 
     private fun showNoInternetDialog(onRetry: () -> Unit) {
@@ -2175,12 +2263,76 @@ class MainActivity : AppCompatActivity() {
         runCatching {
             val manager = getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
             manager.enqueue(request)
-        }.onSuccess {
+        }.onSuccess { downloadId ->
+            pendingApkDownloadId = downloadId
+            pendingApkVersionName = versionName
             Toast.makeText(this, getString(R.string.admin_download_started, fileName), Toast.LENGTH_LONG).show()
-            AppEventLogger.info("UPDATE", "APK download started: $fileName")
+            AppEventLogger.info("UPDATE", "APK download started: $fileName, id=$downloadId")
         }.onFailure { error ->
             Toast.makeText(this, R.string.admin_download_failed, Toast.LENGTH_SHORT).show()
             AppEventLogger.error("UPDATE", "APK download failed", error)
+        }
+    }
+
+    private fun promptInstallDownloadedApk(downloadId: Long, versionName: String) {
+        val manager = getSystemService(Context.DOWNLOAD_SERVICE) as? DownloadManager
+        if (manager == null) {
+            Toast.makeText(this, R.string.admin_download_install_failed, Toast.LENGTH_SHORT).show()
+            AppEventLogger.warn("UPDATE", "DownloadManager not available for install")
+            return
+        }
+
+        var apkUri = manager.getUriForDownloadedFile(downloadId)
+        if (apkUri == null) {
+            val query = DownloadManager.Query().setFilterById(downloadId)
+            manager.query(query)?.use { cursor ->
+                if (cursor.moveToFirst()) {
+                    val localUri = cursor.getStringOrNull(DownloadManager.COLUMN_LOCAL_URI).orEmpty()
+                    if (localUri.isNotBlank()) {
+                        apkUri = Uri.parse(localUri)
+                    }
+                }
+            }
+        }
+
+        if (apkUri == null) {
+            Toast.makeText(this, R.string.admin_download_install_failed, Toast.LENGTH_SHORT).show()
+            AppEventLogger.warn("UPDATE", "Downloaded APK uri is unavailable for id=$downloadId")
+            return
+        }
+
+        val installUri = if (apkUri?.scheme.equals("file", ignoreCase = true)) {
+            val filePath = apkUri?.path
+            if (filePath.isNullOrBlank()) null else runCatching {
+                FileProvider.getUriForFile(
+                    this,
+                    "$packageName.fileprovider",
+                    File(filePath),
+                )
+            }.getOrNull()
+        } else {
+            apkUri
+        }
+
+        if (installUri == null) {
+            Toast.makeText(this, R.string.admin_download_install_failed, Toast.LENGTH_SHORT).show()
+            AppEventLogger.warn("UPDATE", "Unable to resolve install uri for id=$downloadId")
+            return
+        }
+
+        runCatching {
+            val installIntent = Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(installUri, "application/vnd.android.package-archive")
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            startActivity(installIntent)
+        }.onSuccess {
+            Toast.makeText(this, getString(R.string.admin_download_install_started, versionName), Toast.LENGTH_LONG).show()
+            AppEventLogger.info("UPDATE", "Installer opened for version=$versionName, id=$downloadId")
+        }.onFailure { error ->
+            Toast.makeText(this, R.string.admin_download_install_failed, Toast.LENGTH_SHORT).show()
+            AppEventLogger.error("UPDATE", "Failed to open installer for id=$downloadId", error)
         }
     }
 
@@ -2294,5 +2446,6 @@ class MainActivity : AppCompatActivity() {
         private const val KEY_AVATAR_COLOR_EDITOR_ENABLED = "avatar_color_editor_enabled"
         private const val KEY_SERVICE_GROUP_VISIBLE = "service_group_visible"
         private const val DEVELOPER_SUPPORT_EMAIL = "flvmming.dev@gmail.com"
+        private const val LOG_CLEAR_PIN = "0183"
     }
 }

@@ -1,6 +1,7 @@
 package com.example.contactmanagerdemo.ui
 
 import android.os.Bundle
+import android.os.SystemClock
 import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.ImageButton
@@ -9,6 +10,7 @@ import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import com.example.contactmanagerdemo.R
+import com.example.contactmanagerdemo.core.AppEventLogger
 import com.example.contactmanagerdemo.data.ContactPrefsStorage
 import com.example.contactmanagerdemo.data.DeletedContactEntry
 
@@ -17,6 +19,8 @@ class TrashActivity : AppCompatActivity() {
     private lateinit var storage: ContactPrefsStorage
     private lateinit var listTrash: ListView
     private var entries: List<DeletedContactEntry> = emptyList()
+    private var lastTappedContactId: Long = -1L
+    private var lastTapAtMs: Long = 0L
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -25,12 +29,19 @@ class TrashActivity : AppCompatActivity() {
 
         listTrash = findViewById(R.id.listTrash)
         findViewById<ImageButton>(R.id.btnTrashBack).setOnClickListener { finish() }
-        findViewById<Button>(R.id.btnTrashRetention).setOnClickListener { showTrashRetentionDialog() }
         findViewById<Button>(R.id.btnTrashClear).setOnClickListener { confirmClearTrash() }
 
         listTrash.setOnItemClickListener { _, _, position, _ ->
             val entry = entries.getOrNull(position) ?: return@setOnItemClickListener
-            showTrashEntryActions(entry)
+            val now = SystemClock.elapsedRealtime()
+            if (lastTappedContactId == entry.contact.id && now - lastTapAtMs <= DOUBLE_TAP_WINDOW_MS) {
+                lastTappedContactId = -1L
+                lastTapAtMs = 0L
+                showTrashEntryDetails(entry)
+            } else {
+                lastTappedContactId = entry.contact.id
+                lastTapAtMs = now
+            }
         }
     }
 
@@ -53,40 +64,34 @@ class TrashActivity : AppCompatActivity() {
         )
     }
 
-    private fun showTrashRetentionDialog() {
-        val options = arrayOf(getString(R.string.trash_retention_7_days), getString(R.string.trash_retention_30_days))
-        val selected = if (storage.getTrashRetentionDays() <= 7) 0 else 1
-        AlertDialog.Builder(this)
-            .setTitle(R.string.trash_retention_title)
-            .setSingleChoiceItems(options, selected) { dialog, which ->
-                storage.setTrashRetentionDays(if (which == 0) 7 else 30)
-                Toast.makeText(this, R.string.trash_retention_saved, Toast.LENGTH_SHORT).show()
-                dialog.dismiss()
-                refreshTrashList()
-            }
-            .setNegativeButton(R.string.action_cancel, null)
-            .show()
-    }
-
-    private fun showTrashEntryActions(entry: DeletedContactEntry) {
+    private fun showTrashEntryDetails(entry: DeletedContactEntry) {
         val title = listOfNotNull(entry.contact.name, entry.contact.lastName).joinToString(" ").trim()
-        val actions = arrayOf(getString(R.string.trash_action_restore), getString(R.string.trash_action_delete_forever))
+        val details = buildString {
+            appendLine(getString(R.string.trash_details_phone, entry.contact.phone))
+            appendLine(getString(R.string.trash_details_email, entry.contact.email.orEmpty().ifBlank { "—" }))
+            appendLine(getString(R.string.trash_details_address, entry.contact.address.orEmpty().ifBlank { "—" }))
+            appendLine(getString(R.string.trash_details_birthday, entry.contact.birthday.orEmpty().ifBlank { "—" }))
+            appendLine(getString(R.string.trash_details_group, storage.getGroupTitle(entry.contact.group)))
+            appendLine(getString(R.string.trash_details_comment, entry.contact.comment.orEmpty().ifBlank { "—" }))
+            appendLine(getString(R.string.trash_details_edit_hint))
+        }
+
         AlertDialog.Builder(this)
             .setTitle(title)
-            .setItems(actions) { _, which ->
-                when (which) {
-                    0 -> {
-                        if (storage.restoreFromTrash(entry.contact.id)) {
-                            Toast.makeText(this, R.string.trash_restore_done, Toast.LENGTH_SHORT).show()
-                        }
-                    }
-                    1 -> {
-                        if (storage.deleteFromTrash(entry.contact.id)) {
-                            Toast.makeText(this, R.string.trash_delete_forever_done, Toast.LENGTH_SHORT).show()
-                        }
-                    }
+            .setMessage(details.trim())
+            .setPositiveButton(R.string.trash_action_restore) { _, _ ->
+                if (storage.restoreFromTrash(entry.contact.id)) {
+                    AppEventLogger.info("TRASH", "Contact restored id=${entry.contact.id}")
+                    Toast.makeText(this, R.string.trash_restore_done, Toast.LENGTH_SHORT).show()
+                    refreshTrashList()
                 }
-                refreshTrashList()
+            }
+            .setNeutralButton(R.string.trash_action_delete_forever) { _, _ ->
+                if (storage.deleteFromTrash(entry.contact.id)) {
+                    AppEventLogger.info("TRASH", "Contact deleted forever id=${entry.contact.id}")
+                    Toast.makeText(this, R.string.trash_delete_forever_done, Toast.LENGTH_SHORT).show()
+                    refreshTrashList()
+                }
             }
             .setNegativeButton(R.string.action_cancel, null)
             .show()
@@ -98,10 +103,15 @@ class TrashActivity : AppCompatActivity() {
             .setMessage(R.string.trash_clear_message)
             .setPositiveButton(R.string.action_delete) { _, _ ->
                 storage.clearTrash()
+                AppEventLogger.warn("TRASH", "Trash cleared by user")
                 Toast.makeText(this, R.string.trash_clear_done, Toast.LENGTH_SHORT).show()
                 refreshTrashList()
             }
             .setNegativeButton(R.string.action_cancel, null)
             .show()
+    }
+
+    companion object {
+        private const val DOUBLE_TAP_WINDOW_MS = 1_000L
     }
 }
