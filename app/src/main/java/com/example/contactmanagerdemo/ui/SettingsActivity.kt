@@ -2,11 +2,16 @@ package com.example.contactmanagerdemo.ui
 
 import android.content.Intent
 import android.graphics.Color
+import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
+import android.view.View
+import android.view.ViewGroup
 import android.widget.Button
-import android.widget.EditText
+import android.widget.GridLayout
 import android.widget.ImageButton
 import android.widget.LinearLayout
+import android.widget.ScrollView
+import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
@@ -24,6 +29,11 @@ class SettingsActivity : AppCompatActivity() {
     private lateinit var btnSettingsTheme: Button
     private lateinit var btnSettingsTrash: Button
     private lateinit var btnSettingsClearAllInfo: Button
+    private val devPrefs by lazy { getSharedPreferences(DEV_PREFS_NAME, MODE_PRIVATE) }
+    private val accentPaletteColors by lazy {
+        AvatarColorPalette.allHexColors()
+            .mapNotNull { hex -> runCatching { Color.parseColor(hex) }.getOrNull() }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -67,7 +77,7 @@ class SettingsActivity : AppCompatActivity() {
             getString(R.string.settings_theme_mode_branch),
             getString(R.string.settings_theme_accent_branch),
         )
-        AlertDialog.Builder(this)
+        val dialog = AlertDialog.Builder(this)
             .setTitle(R.string.settings_theme_title)
             .setItems(options) { _, which ->
                 when (which) {
@@ -76,7 +86,9 @@ class SettingsActivity : AppCompatActivity() {
                 }
             }
             .setNegativeButton(R.string.action_cancel, null)
-            .show()
+            .create()
+        dialog.show()
+        styleDialogButtons(dialog)
     }
 
     private fun showThemeModeDialog() {
@@ -90,9 +102,9 @@ class SettingsActivity : AppCompatActivity() {
             ThemeManager.ThemeMode.DARK -> 1
             ThemeManager.ThemeMode.SYSTEM -> 2
         }
-        AlertDialog.Builder(this)
+        val dialog = AlertDialog.Builder(this)
             .setTitle(R.string.settings_theme_mode_branch)
-            .setSingleChoiceItems(options, currentIndex) { dialog, which ->
+            .setSingleChoiceItems(options, currentIndex) { choiceDialog, which ->
                 val selected = when (which) {
                     1 -> ThemeManager.ThemeMode.DARK
                     2 -> ThemeManager.ThemeMode.SYSTEM
@@ -101,11 +113,13 @@ class SettingsActivity : AppCompatActivity() {
                 ThemeManager.setThemeMode(this, selected)
                 AppEventLogger.info("THEME", "Theme mode changed to ${selected.storageValue}")
                 Toast.makeText(this, R.string.settings_theme_saved, Toast.LENGTH_SHORT).show()
-                dialog.dismiss()
-                recreate()
+                choiceDialog.dismiss()
+                onThemeChanged()
             }
             .setNegativeButton(R.string.action_cancel, null)
-            .show()
+            .create()
+        dialog.show()
+        styleDialogButtons(dialog)
     }
 
     private fun showAccentThemeDialog() {
@@ -119,73 +133,195 @@ class SettingsActivity : AppCompatActivity() {
         val current = ThemeManager.getAccentPreset(this)
         val selectedIndex = presets.indexOfFirst { it.first == current }.coerceAtLeast(0)
 
-        AlertDialog.Builder(this)
+        val dialog = AlertDialog.Builder(this)
             .setTitle(R.string.settings_theme_accent_branch)
-            .setSingleChoiceItems(presets.map { it.second }.toTypedArray(), selectedIndex) { dialog, which ->
+            .setSingleChoiceItems(presets.map { it.second }.toTypedArray(), selectedIndex) { choiceDialog, which ->
                 val preset = presets.getOrNull(which)?.first ?: ThemeManager.AccentPreset.YELLOW
                 if (preset == ThemeManager.AccentPreset.CUSTOM) {
-                    dialog.dismiss()
+                    choiceDialog.dismiss()
                     showCustomAccentDialog()
                     return@setSingleChoiceItems
                 }
                 ThemeManager.setAccentPreset(this, preset)
                 AppEventLogger.info("THEME", "Accent preset changed to ${preset.storageValue}")
                 Toast.makeText(this, R.string.settings_theme_saved, Toast.LENGTH_SHORT).show()
-                dialog.dismiss()
-                applyAccentButtons()
+                choiceDialog.dismiss()
+                onThemeChanged()
             }
             .setNegativeButton(R.string.action_cancel, null)
-            .show()
+            .create()
+        dialog.show()
+        styleDialogButtons(dialog)
     }
 
     private fun showCustomAccentDialog() {
         val (currentStart, currentEnd) = ThemeManager.getAccentGradient(this)
-        val inputStart = EditText(this).apply {
-            hint = "#F59E0B"
-            setText(colorToHex(currentStart))
-            setTextColor(ContextCompat.getColor(this@SettingsActivity, R.color.text_primary))
-            setHintTextColor(ContextCompat.getColor(this@SettingsActivity, R.color.text_secondary))
-            background = ContextCompat.getDrawable(this@SettingsActivity, R.drawable.bg_dialog_input)
-            setPadding(dp(12), dp(10), dp(12), dp(10))
+        var selectedStart = currentStart
+        var selectedEnd = currentEnd
+
+        val previewStart = createColorPreviewView(selectedStart)
+        val previewEnd = createColorPreviewView(selectedEnd)
+        val btnPickStart = Button(this).apply {
+            text = getString(R.string.theme_accent_custom_pick_start)
+            ThemeManager.applyGradientBackground(this, cornerDp = 10f)
+            setOnClickListener {
+                showAccentPaletteDialog(selectedStart) { color ->
+                    selectedStart = color
+                    previewStart.background = createColorPreviewDrawable(color)
+                }
+            }
         }
-        val inputEnd = EditText(this).apply {
-            hint = "#FBBF24"
-            setText(colorToHex(currentEnd))
-            setTextColor(ContextCompat.getColor(this@SettingsActivity, R.color.text_primary))
-            setHintTextColor(ContextCompat.getColor(this@SettingsActivity, R.color.text_secondary))
-            background = ContextCompat.getDrawable(this@SettingsActivity, R.drawable.bg_dialog_input)
-            setPadding(dp(12), dp(10), dp(12), dp(10))
-        }
-        val container = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            addView(inputStart)
-            addView(inputEnd)
-            setPadding(dp(8), dp(8), dp(8), dp(8))
+        val btnPickEnd = Button(this).apply {
+            text = getString(R.string.theme_accent_custom_pick_end)
+            ThemeManager.applyGradientBackground(this, cornerDp = 10f)
+            setOnClickListener {
+                showAccentPaletteDialog(selectedEnd) { color ->
+                    selectedEnd = color
+                    previewEnd.background = createColorPreviewDrawable(color)
+                }
+            }
         }
 
-        AlertDialog.Builder(this)
+        val container = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(6), dp(6), dp(6), dp(6))
+            addView(
+                TextView(this@SettingsActivity).apply {
+                    text = getString(R.string.theme_accent_custom_preview_start)
+                    setTextColor(ContextCompat.getColor(this@SettingsActivity, R.color.text_secondary))
+                },
+            )
+            addView(previewStart, LinearLayout.LayoutParams(dp(46), dp(46)).apply { topMargin = dp(4) })
+            addView(btnPickStart, LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+            ).apply { topMargin = dp(8) })
+            addView(
+                TextView(this@SettingsActivity).apply {
+                    text = getString(R.string.theme_accent_custom_preview_end)
+                    setTextColor(ContextCompat.getColor(this@SettingsActivity, R.color.text_secondary))
+                    setPadding(0, dp(12), 0, 0)
+                },
+            )
+            addView(previewEnd, LinearLayout.LayoutParams(dp(46), dp(46)).apply { topMargin = dp(4) })
+            addView(btnPickEnd, LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+            ).apply { topMargin = dp(8) })
+        }
+
+        val dialog = AlertDialog.Builder(this)
             .setTitle(R.string.theme_accent_custom_dialog_title)
             .setView(container)
             .setPositiveButton(R.string.action_save) { _, _ ->
-                val startRaw = inputStart.text.toString().trim()
-                val endRaw = inputEnd.text.toString().trim()
-                val start = runCatching { Color.parseColor(startRaw) }.getOrNull()
-                val end = runCatching { Color.parseColor(endRaw) }.getOrNull()
-                if (start == null || end == null) {
-                    Toast.makeText(this, R.string.theme_accent_custom_error, Toast.LENGTH_SHORT).show()
-                    return@setPositiveButton
-                }
-                ThemeManager.setCustomAccent(this, start, end)
-                AppEventLogger.info("THEME", "Accent preset changed to custom")
+                ThemeManager.setCustomAccent(this, selectedStart, selectedEnd)
+                AppEventLogger.info("THEME", "Accent preset changed to custom palette")
                 Toast.makeText(this, R.string.settings_theme_saved, Toast.LENGTH_SHORT).show()
-                applyAccentButtons()
+                onThemeChanged()
             }
             .setNegativeButton(R.string.action_cancel, null)
-            .show()
+            .create()
+        dialog.show()
+        styleDialogButtons(dialog)
+    }
+
+    private fun showAccentPaletteDialog(
+        selectedColor: Int,
+        onColorSelected: (Int) -> Unit,
+    ) {
+        val colors = if (accentPaletteColors.isEmpty()) {
+            listOf(Color.parseColor("#F59E0B"), Color.parseColor("#FBBF24"))
+        } else {
+            accentPaletteColors
+        }
+        val grid = GridLayout(this).apply {
+            columnCount = 6
+            rowCount = (colors.size + 5) / 6
+        }
+        colors.forEach { color ->
+            val swatch = View(this).apply {
+                background = createPaletteSwatchDrawable(color, color == selectedColor)
+            }
+            grid.addView(
+                swatch,
+                GridLayout.LayoutParams().apply {
+                    width = dp(36)
+                    height = dp(36)
+                    setMargins(dp(4), dp(4), dp(4), dp(4))
+                },
+            )
+        }
+
+        val scroll = ScrollView(this).apply {
+            addView(
+                grid,
+                ViewGroup.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                ),
+            )
+        }
+
+        val dialog = AlertDialog.Builder(this)
+            .setTitle(R.string.theme_accent_custom_palette_title)
+            .setView(scroll)
+            .setNegativeButton(R.string.action_cancel, null)
+            .create()
+
+        for (index in 0 until grid.childCount) {
+            grid.getChildAt(index).setOnClickListener {
+                val pickedColor = colors[index]
+                onColorSelected(pickedColor)
+                dialog.dismiss()
+            }
+        }
+
+        dialog.show()
+        styleDialogButtons(dialog)
+    }
+
+    private fun createColorPreviewView(color: Int): View {
+        return View(this).apply {
+            background = createColorPreviewDrawable(color)
+        }
+    }
+
+    private fun createColorPreviewDrawable(color: Int): GradientDrawable {
+        return GradientDrawable().apply {
+            shape = GradientDrawable.OVAL
+            setColor(color)
+            setStroke(dp(1), 0xFFE2E8F0.toInt())
+        }
+    }
+
+    private fun createPaletteSwatchDrawable(color: Int, selected: Boolean): GradientDrawable {
+        return GradientDrawable().apply {
+            shape = GradientDrawable.OVAL
+            setColor(color)
+            setStroke(
+                dp(if (selected) 2 else 1),
+                if (selected) ContextCompat.getColor(this@SettingsActivity, R.color.text_primary) else 0xFFE2E8F0.toInt(),
+            )
+        }
+    }
+
+    private fun onThemeChanged() {
+        applyAccentButtons()
+        if (isRestartBypassAuthorized()) {
+            AppEventLogger.info("THEME", "Theme changed with restart bypass=ON; app restart skipped")
+            recreate()
+            return
+        }
+        AppEventLogger.info("THEME", "Theme changed with restart bypass=OFF; restart requested")
+        returnAction(ACTION_THEME_RESTART_REQUIRED)
+    }
+
+    private fun isRestartBypassAuthorized(): Boolean {
+        return devPrefs.getBoolean(KEY_RESTART_BYPASS_AUTHORIZED, false)
     }
 
     private fun confirmClearAllInfo() {
-        AlertDialog.Builder(this)
+        val dialog = AlertDialog.Builder(this)
             .setTitle(R.string.settings_clear_all_info_title)
             .setMessage(R.string.settings_clear_all_info_message)
             .setPositiveButton(R.string.action_delete) { _, _ ->
@@ -202,7 +338,9 @@ class SettingsActivity : AppCompatActivity() {
                 returnAction(ACTION_DATA_CLEARED)
             }
             .setNegativeButton(R.string.action_cancel, null)
-            .show()
+            .create()
+        dialog.show()
+        styleDialogButtons(dialog)
     }
 
     private fun applyAccentButtons() {
@@ -217,15 +355,31 @@ class SettingsActivity : AppCompatActivity() {
         }
     }
 
-    private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
+    private fun styleDialogButtons(dialog: AlertDialog) {
+        listOf(
+            AlertDialog.BUTTON_POSITIVE,
+            AlertDialog.BUTTON_NEGATIVE,
+            AlertDialog.BUTTON_NEUTRAL,
+        ).forEach { id ->
+            val button = dialog.getButton(id) ?: return@forEach
+            ThemeManager.applyGradientBackground(button, cornerDp = 12f)
+            button.isAllCaps = false
+            button.textSize = 12f
+            button.minHeight = dp(34)
+            button.minimumHeight = dp(34)
+            button.setPadding(dp(10), dp(6), dp(10), dp(6))
+        }
+    }
 
-    private fun colorToHex(color: Int): String = String.format("#%06X", 0xFFFFFF and color)
+    private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
 
     companion object {
         const val EXTRA_ACTION = "extra_action"
         const val ACTION_IMPORT = "action_import"
         const val ACTION_EXPORT = "action_export"
         const val ACTION_DATA_CLEARED = "action_data_cleared"
+        const val ACTION_THEME_RESTART_REQUIRED = "action_theme_restart_required"
         private const val DEV_PREFS_NAME = "contact_manager_dev_settings"
+        private const val KEY_RESTART_BYPASS_AUTHORIZED = "restart_bypass_authorized"
     }
 }

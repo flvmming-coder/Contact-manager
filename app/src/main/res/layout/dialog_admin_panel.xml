@@ -35,6 +35,51 @@
         android:layout_marginTop="10dp"
         android:text="@string/admin_color_editor_toggle" />
 
+    <TextView
+        android:id="@+id/textRestartBypassLabel"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:text="@string/admin_restart_bypass_label"
+        android:textColor="@color/text_primary"
+        android:textSize="13sp" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:orientation="horizontal">
+
+        <EditText
+            android:id="@+id/inputRestartBypassCode"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:background="@drawable/bg_dialog_input"
+            android:hint="@string/admin_restart_bypass_hint"
+            android:inputType="numberPassword"
+            android:maxLength="8"
+            android:padding="10dp"
+            android:textColor="@color/text_primary"
+            android:textColorHint="@color/text_secondary" />
+
+        <Button
+            android:id="@+id/btnApplyRestartBypassCode"
+            style="@style/Widget.ContactManager.GradientButton.Small"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:text="@string/admin_restart_bypass_apply" />
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/textRestartBypassStatus"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:textColor="@color/text_secondary"
+        android:textSize="12sp" />
+
     <Button
         android:id="@+id/btnCheckUpdates"
         style="@style/Widget.ContactManager.GradientButton.Small"

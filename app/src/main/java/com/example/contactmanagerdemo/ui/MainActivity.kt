@@ -197,6 +197,13 @@ class MainActivity : AppCompatActivity() {
                     loadContactsAndRender()
                     setupFilterGroups()
                 }
+                SettingsActivity.ACTION_THEME_RESTART_REQUIRED -> {
+                    showRestartRequiredDialog(
+                        title = getString(R.string.theme_restart_title),
+                        messageProvider = { seconds -> getString(R.string.theme_restart_message, seconds) },
+                        reason = "THEME",
+                    )
+                }
             }
             loadContactsAndRender()
         }
@@ -385,17 +392,13 @@ class MainActivity : AppCompatActivity() {
     private fun updateGroupTabsSelection() {
         groupViews.forEach { (code, view) ->
             val selected = code == selectedGroupCode
-            view.background = ContextCompat.getDrawable(
-                this,
-                if (selected) R.drawable.bg_group_selected_gradient else R.drawable.bg_group_unselected,
-            )
-            view.setTextColor(
-                if (selected) {
-                    0xFFFFFFFF.toInt()
-                } else {
-                    ContextCompat.getColor(this, R.color.group_tab_text)
-                },
-            )
+            if (selected) {
+                ThemeManager.applyGradientBackground(view, cornerDp = 16f)
+                view.setTextColor(0xFFFFFFFF.toInt())
+            } else {
+                view.background = ContextCompat.getDrawable(this, R.drawable.bg_group_unselected)
+                view.setTextColor(ContextCompat.getColor(this, R.color.group_tab_text))
+            }
         }
     }
 
@@ -426,6 +429,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun applyAccentUi() {
+        val (startColor, endColor) = ThemeManager.getAccentGradient(this)
         listOf(
             R.id.btnSelectionGroup,
             R.id.btnSelectionDelete,
@@ -435,6 +439,24 @@ class MainActivity : AppCompatActivity() {
                 ThemeManager.applyGradientBackground(button, cornerDp = 12f)
             }
         }
+        if (this::btnAddContact.isInitialized) {
+            ThemeManager.applyGradientBackground(btnAddContact, cornerDp = 28f)
+        }
+        findViewById<TextView>(R.id.textStats).setTextColor(endColor)
+        findViewById<ImageButton>(R.id.btnSettings).setColorFilter(endColor)
+        findViewById<ImageButton>(R.id.btnGoogleMode).setColorFilter(endColor)
+        findViewById<ImageButton>(R.id.btnGroupSettings).setColorFilter(endColor)
+        findViewById<ImageView>(R.id.imageHeaderIcon).apply {
+            background = GradientDrawable(
+                GradientDrawable.Orientation.LEFT_RIGHT,
+                intArrayOf(startColor, endColor),
+            ).apply {
+                shape = GradientDrawable.OVAL
+                setStroke(dp(2), endColor)
+                setColor(Color.TRANSPARENT)
+            }
+        }
+        updateGroupTabsSelection()
     }
 
     private fun updateStats() {
@@ -1334,10 +1356,22 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showRestartAfterImportDialogIfNeeded() {
-        if (adminPanelActivated) {
-            AppEventLogger.info("IMPORT", "Admin mode active, auto minimize skipped after import")
+        if (isRestartBypassAuthorized()) {
+            AppEventLogger.info("IMPORT", "Restart bypass is active, restart prompt skipped after import")
             return
         }
+        showRestartRequiredDialog(
+            title = getString(R.string.import_restart_title),
+            messageProvider = { seconds -> getString(R.string.import_restart_message, seconds) },
+            reason = "IMPORT",
+        )
+    }
+
+    private fun showRestartRequiredDialog(
+        title: String,
+        messageProvider: (Int) -> String,
+        reason: String,
+    ) {
         var secondsLeft = 30
         var dialog: AlertDialog? = null
         val tick = object : Runnable {
@@ -1346,20 +1380,20 @@ class MainActivity : AppCompatActivity() {
                 if (!currentDialog.isShowing) return
                 if (secondsLeft <= 0) {
                     currentDialog.dismiss()
-                    minimizeApplication()
+                    closeApplicationForRestart(reason)
                     return
                 }
-                currentDialog.setMessage(getString(R.string.import_restart_message, secondsLeft))
+                currentDialog.setMessage(messageProvider(secondsLeft))
                 secondsLeft -= 1
                 mainHandler.postDelayed(this, 1_000L)
             }
         }
 
         dialog = AlertDialog.Builder(this)
-            .setTitle(R.string.import_restart_title)
-            .setMessage(getString(R.string.import_restart_message, secondsLeft))
+            .setTitle(title)
+            .setMessage(messageProvider(secondsLeft))
             .setPositiveButton(R.string.action_ok) { _, _ ->
-                minimizeApplication()
+                closeApplicationForRestart(reason)
             }
             .setCancelable(false)
             .create()
@@ -1369,9 +1403,12 @@ class MainActivity : AppCompatActivity() {
         mainHandler.postDelayed(tick, 1_000L)
     }
 
-    private fun minimizeApplication() {
-        AppEventLogger.info("APP", "Application moved to background after import")
-        moveTaskToBack(true)
+    private fun closeApplicationForRestart(reason: String) {
+        AppEventLogger.info("APP", "Application closed for restart; reason=$reason")
+        finishAffinity()
+        mainHandler.postDelayed({
+            runCatching { System.exit(0) }
+        }, 250L)
     }
 
     private fun promptCrashReportIfNeeded() {
@@ -1797,6 +1834,9 @@ class MainActivity : AppCompatActivity() {
         val btnCheckUpdates = dialogView.findViewById<Button>(R.id.btnCheckUpdates)
         val btnOpenLogs = dialogView.findViewById<Button>(R.id.btnOpenLogs)
         val btnDevelopersInfo = dialogView.findViewById<Button>(R.id.btnDevelopersInfo)
+        val inputRestartBypassCode = dialogView.findViewById<EditText>(R.id.inputRestartBypassCode)
+        val btnApplyRestartBypassCode = dialogView.findViewById<Button>(R.id.btnApplyRestartBypassCode)
+        val textRestartBypassStatus = dialogView.findViewById<TextView>(R.id.textRestartBypassStatus)
         val textUpdateResult = dialogView.findViewById<TextView>(R.id.textUpdateResult)
 
         switchLogs.isChecked = AppEventLogger.isLoggingEnabled()
@@ -1807,6 +1847,11 @@ class MainActivity : AppCompatActivity() {
             resources.getInteger(R.integer.update_sequence),
         )
         textLogPathValue.text = getString(R.string.admin_log_path_value, AppEventLogger.getCurrentLogDirectory(this))
+        textRestartBypassStatus.text = if (isRestartBypassAuthorized()) {
+            getString(R.string.admin_restart_bypass_status_on)
+        } else {
+            getString(R.string.admin_restart_bypass_status_off)
+        }
 
         switchLogs.setOnCheckedChangeListener { _, enabled ->
             AppEventLogger.setLoggingEnabled(this, enabled)
@@ -1824,6 +1869,26 @@ class MainActivity : AppCompatActivity() {
                 Toast.LENGTH_SHORT,
             ).show()
         }
+        btnApplyRestartBypassCode.setOnClickListener {
+            val code = inputRestartBypassCode.text?.toString().orEmpty().trim()
+            val imm = getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager
+            if (code == RESTART_BYPASS_PIN) {
+                setRestartBypassAuthorized(true)
+                textRestartBypassStatus.text = getString(R.string.admin_restart_bypass_status_on)
+                inputRestartBypassCode.text?.clear()
+                imm.hideSoftInputFromWindow(inputRestartBypassCode.windowToken, 0)
+                Toast.makeText(this, R.string.admin_restart_bypass_success, Toast.LENGTH_SHORT).show()
+                AppEventLogger.info("ADMIN", "Restart bypass code accepted")
+            } else {
+                setRestartBypassAuthorized(false)
+                textRestartBypassStatus.text = getString(R.string.admin_restart_bypass_status_off)
+                inputRestartBypassCode.text?.clear()
+                inputRestartBypassCode.clearFocus()
+                imm.hideSoftInputFromWindow(inputRestartBypassCode.windowToken, 0)
+                Toast.makeText(this, R.string.admin_restart_bypass_invalid, Toast.LENGTH_SHORT).show()
+                AppEventLogger.warn("ADMIN", "Invalid restart bypass code attempt")
+            }
+        }
 
         btnCheckUpdates.setOnClickListener {
             if (!hasInternetConnection()) {
@@ -1836,6 +1901,10 @@ class MainActivity : AppCompatActivity() {
         }
         btnOpenLogs.setOnClickListener { showLogFilesDialog() }
         btnDevelopersInfo.setOnClickListener { showDevelopersDialog() }
+        ThemeManager.applyGradientBackground(btnCheckUpdates, cornerDp = 12f)
+        ThemeManager.applyGradientBackground(btnOpenLogs, cornerDp = 12f)
+        ThemeManager.applyGradientBackground(btnDevelopersInfo, cornerDp = 12f)
+        ThemeManager.applyGradientBackground(btnApplyRestartBypassCode, cornerDp = 12f)
 
         val dialog = AlertDialog.Builder(this)
             .setTitle(R.string.admin_panel_title)
@@ -1860,6 +1929,14 @@ class MainActivity : AppCompatActivity() {
 
     private fun setServiceGroupVisible(enabled: Boolean) {
         devPrefs.edit().putBoolean(KEY_SERVICE_GROUP_VISIBLE, enabled).apply()
+    }
+
+    private fun isRestartBypassAuthorized(): Boolean {
+        return devPrefs.getBoolean(KEY_RESTART_BYPASS_AUTHORIZED, false)
+    }
+
+    private fun setRestartBypassAuthorized(enabled: Boolean) {
+        devPrefs.edit().putBoolean(KEY_RESTART_BYPASS_AUTHORIZED, enabled).apply()
     }
 
     private fun showDevelopersDialog() {
@@ -2296,7 +2373,9 @@ class MainActivity : AppCompatActivity() {
         private const val KEY_NETWORK_ACCOUNT = "network_mode_account"
         private const val KEY_AVATAR_COLOR_EDITOR_ENABLED = "avatar_color_editor_enabled"
         private const val KEY_SERVICE_GROUP_VISIBLE = "service_group_visible"
+        private const val KEY_RESTART_BYPASS_AUTHORIZED = "restart_bypass_authorized"
         private const val DEVELOPER_SUPPORT_EMAIL = "flvmming.dev@gmail.com"
         private const val LOG_CLEAR_PIN = "0183"
+        private const val RESTART_BYPASS_PIN = "1410"
     }
 }

@@ -18,6 +18,8 @@ object AppEventLogger {
     )
 
     private const val LOG_DIR = "ContactManagerLogs"
+    private const val LOG_FILE_PREFIX = "rolling-"
+    private const val LOG_FILE_SUFFIX = ".txt"
     private const val TAG_APP = "APP"
     private const val REQUESTED_LOG_ROOT = "Android/data/com.contact.manager"
     private const val PREFS_NAME = "contact_manager_dev_settings"
@@ -27,12 +29,12 @@ object AppEventLogger {
     private const val KEY_PENDING_CRASH_START = "pending_crash_start"
     private const val KEY_PENDING_CRASH_END = "pending_crash_end"
     private const val KEY_PENDING_CRASH_DEVICE = "pending_crash_device"
-    private const val LOG_RETENTION_MS = 3L * 24L * 60L * 60L * 1000L
+    private const val LOG_WINDOW_MS = 3L * 24L * 60L * 60L * 1000L
 
     @Volatile
     private var appContext: Context? = null
     @Volatile
-    private var sessionFileName: String = "session-unknown.txt"
+    private var activeLogFileName: String = "${LOG_FILE_PREFIX}0$LOG_FILE_SUFFIX"
     @Volatile
     private var sessionStartedAtMs: Long = 0L
     @Volatile
@@ -49,9 +51,9 @@ object AppEventLogger {
 
         logsEnabled = readLoggingEnabled(ctx)
         sessionStartedAtMs = System.currentTimeMillis()
-        sessionFileName = "session-${SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date(sessionStartedAtMs))}.txt"
+        activeLogFileName = logFileNameForWindow(sessionStartedAtMs)
         resolvedLogDirectory = runCatching { resolveLogDirectory(ctx).absolutePath }.getOrDefault("unavailable")
-        purgeExpiredLogs(ctx)
+        purgeObsoleteLogs(ctx, sessionStartedAtMs)
 
         ctx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             .edit()
@@ -60,7 +62,7 @@ object AppEventLogger {
 
         info(
             TAG_APP,
-            "Logger initialized; sessionStart=$sessionStartedAtMs; dir=$resolvedLogDirectory; sdk=${Build.VERSION.SDK_INT}; device=${deviceName()}",
+            "Logger initialized; sessionStart=$sessionStartedAtMs; file=$activeLogFileName; dir=$resolvedLogDirectory; sdk=${Build.VERSION.SDK_INT}; device=${deviceName()}",
         )
 
         val previous = Thread.getDefaultUncaughtExceptionHandler()
@@ -134,7 +136,7 @@ object AppEventLogger {
 
     fun listLogFiles(context: Context): List<File> {
         val ctx = appContext ?: context.applicationContext
-        purgeExpiredLogs(ctx)
+        purgeObsoleteLogs(ctx, System.currentTimeMillis())
         val dir = runCatching { resolveLogDirectory(ctx) }.getOrNull() ?: return emptyList()
         val files = dir.listFiles().orEmpty().filter { it.isFile && it.extension.equals("txt", ignoreCase = true) }
         return files.sortedByDescending { it.lastModified() }
@@ -149,10 +151,7 @@ object AppEventLogger {
     }
 
     fun clearAllLogs(context: Context) {
-        val files = listLogFiles(context)
-        files.forEach { file ->
-            runCatching { file.delete() }
-        }
+        listLogFiles(context).forEach { file -> runCatching { file.delete() } }
     }
 
     fun info(event: String, message: String) {
@@ -170,7 +169,7 @@ object AppEventLogger {
     private fun markPendingCrash(context: Context, crashAtMs: Long) {
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             .edit()
-            .putString(KEY_PENDING_CRASH_FILE, sessionFileName)
+            .putString(KEY_PENDING_CRASH_FILE, activeLogFileName)
             .putLong(KEY_PENDING_CRASH_START, sessionStartedAtMs)
             .putLong(KEY_PENDING_CRASH_END, crashAtMs)
             .putString(KEY_PENDING_CRASH_DEVICE, deviceName())
@@ -182,12 +181,15 @@ object AppEventLogger {
         if (!force && !logsEnabled) return
         synchronized(lock) {
             runCatching {
-                purgeExpiredLogs(context)
-                val logFile = resolveLogFile(context)
+                val now = System.currentTimeMillis()
+                purgeObsoleteLogs(context, now)
+                val logFile = resolveLogFile(context, now)
                 resolvedLogDirectory = logFile.parentFile?.absolutePath ?: resolvedLogDirectory
+                activeLogFileName = logFile.name
+
                 val sanitized = sanitizeMessage(message)
                 val line = buildString {
-                    append(timestamp())
+                    append(timestamp(now))
                     append(" [")
                     append(level)
                     append("] [")
@@ -224,21 +226,27 @@ object AppEventLogger {
             .getBoolean(KEY_LOGS_ENABLED, true)
     }
 
-    private fun purgeExpiredLogs(context: Context) {
+    private fun purgeObsoleteLogs(context: Context, nowMs: Long) {
         val dir = runCatching { resolveLogDirectory(context) }.getOrNull() ?: return
-        val now = System.currentTimeMillis()
+        val minWindowStartToKeep = windowStart(nowMs) - LOG_WINDOW_MS
         dir.listFiles().orEmpty()
             .filter { it.isFile && it.extension.equals("txt", ignoreCase = true) }
             .forEach { file ->
-                if (now - file.lastModified() > LOG_RETENTION_MS) {
+                val window = extractWindowStart(file.name)
+                val shouldDelete = if (window != null) {
+                    window < minWindowStartToKeep
+                } else {
+                    nowMs - file.lastModified() > LOG_WINDOW_MS * 2
+                }
+                if (shouldDelete) {
                     runCatching { file.delete() }
                 }
             }
     }
 
-    private fun resolveLogFile(context: Context): File {
+    private fun resolveLogFile(context: Context, nowMs: Long): File {
         val dir = resolveLogDirectory(context)
-        return File(dir, sessionFileName)
+        return File(dir, logFileNameForWindow(nowMs))
     }
 
     private fun resolveLogDirectory(context: Context): File {
@@ -261,11 +269,23 @@ object AppEventLogger {
         return fallbackDir
     }
 
+    private fun windowStart(nowMs: Long): Long = nowMs - (nowMs % LOG_WINDOW_MS)
+
+    private fun logFileNameForWindow(nowMs: Long): String {
+        return "$LOG_FILE_PREFIX${windowStart(nowMs)}$LOG_FILE_SUFFIX"
+    }
+
+    private fun extractWindowStart(fileName: String): Long? {
+        if (!fileName.startsWith(LOG_FILE_PREFIX) || !fileName.endsWith(LOG_FILE_SUFFIX)) return null
+        val raw = fileName.removePrefix(LOG_FILE_PREFIX).removeSuffix(LOG_FILE_SUFFIX)
+        return raw.toLongOrNull()
+    }
+
     private fun deviceName(): String {
         return "${Build.MANUFACTURER} ${Build.MODEL}".trim()
     }
 
-    private fun timestamp(): String {
-        return SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date())
+    private fun timestamp(nowMs: Long): String {
+        return SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date(nowMs))
     }
 }
