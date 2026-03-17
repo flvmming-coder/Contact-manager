@@ -87,6 +87,15 @@
                 android:text="@string/stats_contacts_default"
                 android:textColor="@color/stats_text"
                 android:textSize="14sp" />
+
+            <ProgressBar
+                android:id="@+id/importProgress"
+                style="?android:attr/progressBarStyleHorizontal"
+                android:layout_width="match_parent"
+                android:layout_height="4dp"
+                android:layout_marginTop="10dp"
+                android:indeterminate="true"
+                android:visibility="gone" />
         </LinearLayout>
 
         <EditText
@@ -120,12 +129,12 @@
 
             <ImageButton
                 android:id="@+id/btnGroupSettings"
-                android:layout_width="34dp"
-                android:layout_height="34dp"
+                android:layout_width="27dp"
+                android:layout_height="27dp"
                 android:layout_marginStart="8dp"
                 android:background="@drawable/bg_group_unselected"
                 android:contentDescription="@string/group_manage_title"
-                android:padding="7dp"
+                android:padding="5dp"
                 app:srcCompat="@drawable/ic_header_settings"
                 app:tint="@color/group_tab_text" />
         </LinearLayout>

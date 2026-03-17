@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="12dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@drawable/bg_top_header_gradient"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:padding="10dp">
+
+        <ImageButton
+            android:id="@+id/btnSettingsBack"
+            android:layout_width="34dp"
+            android:layout_height="34dp"
+            android:background="@android:color/transparent"
+            android:contentDescription="@string/action_cancel"
+            android:padding="8dp"
+            android:src="@android:drawable/ic_media_previous"
+            app:tint="@android:color/white" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:text="@string/settings_menu_title"
+            android:textColor="@android:color/white"
+            android:textSize="18sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:background="@drawable/bg_dialog_surface"
+        android:orientation="vertical"
+        android:padding="10dp">
+
+        <Button
+            android:id="@+id/btnSettingsImport"
+            style="@style/Widget.ContactManager.GradientButton.Small"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/settings_import_contacts" />
+
+        <Button
+            android:id="@+id/btnSettingsExport"
+            style="@style/Widget.ContactManager.GradientButton.Small"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="@string/settings_export_vcf" />
+
+        <Button
+            android:id="@+id/btnSettingsTheme"
+            style="@style/Widget.ContactManager.GradientButton.Small"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="@string/settings_change_theme" />
+
+        <Button
+            android:id="@+id/btnSettingsTrash"
+            style="@style/Widget.ContactManager.GradientButton.Small"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="@string/settings_trash" />
+
+        <Button
+            android:id="@+id/btnSettingsClearAllInfo"
+            style="@style/Widget.ContactManager.GradientButton.Small"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="@string/settings_clear_all" />
+    </LinearLayout>
+
+</LinearLayout>

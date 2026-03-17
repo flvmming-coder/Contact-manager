@@ -1,4 +1,4 @@
-﻿# Contact Manager v0.16.2 (PRE-RELEASE)
+﻿# Contact Manager v0.16.2 (RELEASE)
 
 Причина обновления:
 - расширение импорта групп из телефонной книги;
@@ -27,3 +27,4 @@
 
 APK:
 - ContactManager-v0.16.2-debug.apk
+

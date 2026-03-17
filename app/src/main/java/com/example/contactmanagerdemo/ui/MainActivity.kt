@@ -77,6 +77,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var selectionActionsBar: LinearLayout
     private lateinit var textSelectionCount: TextView
     private lateinit var btnAddContact: View
+    private lateinit var importProgress: View
     private val selectedContactIds = linkedSetOf<Long>()
 
     private var allContacts: MutableList<Contact> = mutableListOf()
@@ -86,6 +87,7 @@ class MainActivity : AppCompatActivity() {
     private val groupViews: MutableMap<String, TextView> = linkedMapOf()
     private val mainHandler = Handler(Looper.getMainLooper())
     private var adminHoldTriggered = false
+    private var adminPanelActivated = false
     private val devPrefs by lazy { getSharedPreferences(DEV_PREFS_NAME, Context.MODE_PRIVATE) }
     private var pendingAvatarPhotoResult: ((String?) -> Unit)? = null
     private var pendingVcfPayload: String? = null
@@ -162,6 +164,28 @@ class MainActivity : AppCompatActivity() {
                     AppEventLogger.error("GOOGLE", "Google sign-in failed", error)
                 }
         }
+    private val contactEditorLauncher =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+            loadContactsAndRender()
+        }
+    private val settingsLauncher =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            val action = result.data?.getStringExtra(SettingsActivity.EXTRA_ACTION).orEmpty()
+            when (action) {
+                SettingsActivity.ACTION_IMPORT -> showImportContactsConfirmDialog()
+                SettingsActivity.ACTION_EXPORT -> startVcfExportFlow()
+                SettingsActivity.ACTION_DATA_CLEARED -> {
+                    loadContactsAndRender()
+                    setupFilterGroups()
+                }
+            }
+            loadContactsAndRender()
+        }
+    private val groupManagementLauncher =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+            setupFilterGroups()
+            loadContactsAndRender()
+        }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -177,12 +201,13 @@ class MainActivity : AppCompatActivity() {
             textEmpty = findViewById(R.id.textEmpty)
             selectionActionsBar = findViewById(R.id.selectionActionsBar)
             textSelectionCount = findViewById(R.id.textSelectionCount)
+            importProgress = findViewById(R.id.importProgress)
 
             val recyclerView = findViewById<RecyclerView>(R.id.recyclerContacts)
             recyclerView.layoutManager = LinearLayoutManager(this)
 
             adapter = ContactAdapter(
-                onEdit = { contact -> showContactDialog(contact) },
+                onEdit = { contact -> openContactEditor(contact.id) },
                 onSelectStarted = { contact -> beginSelectionMode(contact) },
                 onSelectionToggle = { contact -> toggleContactSelection(contact) },
                 isSelectionMode = { isSelectionModeActive() },
@@ -192,16 +217,16 @@ class MainActivity : AppCompatActivity() {
             findViewById<Button>(R.id.btnSelectionGroup).setOnClickListener { showBulkAssignGroupDialog() }
             findViewById<Button>(R.id.btnSelectionDelete).setOnClickListener { showBulkDeleteDialog() }
             findViewById<Button>(R.id.btnSelectionCancel).setOnClickListener { clearSelectionMode() }
-            findViewById<ImageButton>(R.id.btnGroupSettings).setOnClickListener { showGroupManagementDialog() }
+            findViewById<ImageButton>(R.id.btnGroupSettings).setOnClickListener { openGroupManagementScreen() }
 
             setupFilterGroups()
 
             btnAddContact = findViewById(R.id.btnAddContact)
             btnAddContact.setOnClickListener {
                 AppEventLogger.info("UI", "Add contact button clicked")
-                showContactDialog(null)
+                openContactEditor(null)
             }
-            findViewById<ImageButton>(R.id.btnSettings).setOnClickListener { showSettingsMenu() }
+            findViewById<ImageButton>(R.id.btnSettings).setOnClickListener { openSettingsScreen() }
             findViewById<ImageButton>(R.id.btnGoogleMode).setOnClickListener { showGoogleModeDialog() }
             setupAdminPanelLongPress()
             inputSearch.doAfterTextChanged { renderContacts() }
@@ -925,6 +950,25 @@ class MainActivity : AppCompatActivity() {
         return storage.getGroupTitle(code)
     }
 
+    private fun openContactEditor(contactId: Long?) {
+        AppEventLogger.info("NAV", "Open contact editor, contactId=${contactId ?: "new"}")
+        val intent = Intent(this, ContactEditorActivity::class.java)
+        if (contactId != null) {
+            intent.putExtra(ContactEditorActivity.EXTRA_CONTACT_ID, contactId)
+        }
+        contactEditorLauncher.launch(intent)
+    }
+
+    private fun openSettingsScreen() {
+        AppEventLogger.info("NAV", "Open settings screen")
+        settingsLauncher.launch(Intent(this, SettingsActivity::class.java))
+    }
+
+    private fun openGroupManagementScreen() {
+        AppEventLogger.info("NAV", "Open group management screen")
+        groupManagementLauncher.launch(Intent(this, GroupManagementActivity::class.java))
+    }
+
     private fun showGroupManagementDialog() {
         val groups = storage.getGroupsForManage()
         val items = mutableListOf<String>()
@@ -1337,9 +1381,11 @@ class MainActivity : AppCompatActivity() {
 
     private fun importContactsFromDevice() {
         AppEventLogger.info("IMPORT", "Contacts import started")
+        importProgress.visibility = View.VISIBLE
         Thread {
             val result = runCatching { performDeviceContactsImport() }
             runOnUiThread {
+                importProgress.visibility = View.GONE
                 result.onSuccess { importedCount ->
                     if (importedCount > 0) {
                         AppEventLogger.info("IMPORT", "Imported contacts count=$importedCount")
@@ -1349,12 +1395,54 @@ class MainActivity : AppCompatActivity() {
                         Toast.makeText(this, R.string.import_contacts_none, Toast.LENGTH_SHORT).show()
                     }
                     loadContactsAndRender()
+                    showRestartAfterImportDialogIfNeeded()
                 }.onFailure { error ->
                     AppEventLogger.error("IMPORT", "Contacts import failed", error)
                     Toast.makeText(this, R.string.import_contacts_error, Toast.LENGTH_SHORT).show()
                 }
             }
         }.start()
+    }
+
+    private fun showRestartAfterImportDialogIfNeeded() {
+        if (adminPanelActivated) {
+            AppEventLogger.info("IMPORT", "Admin mode active, auto minimize skipped after import")
+            return
+        }
+        var secondsLeft = 30
+        var dialog: AlertDialog? = null
+        val tick = object : Runnable {
+            override fun run() {
+                val currentDialog = dialog ?: return
+                if (!currentDialog.isShowing) return
+                if (secondsLeft <= 0) {
+                    currentDialog.dismiss()
+                    minimizeApplication()
+                    return
+                }
+                currentDialog.setMessage(getString(R.string.import_restart_message, secondsLeft))
+                secondsLeft -= 1
+                mainHandler.postDelayed(this, 1_000L)
+            }
+        }
+
+        dialog = AlertDialog.Builder(this)
+            .setTitle(R.string.import_restart_title)
+            .setMessage(getString(R.string.import_restart_message, secondsLeft))
+            .setPositiveButton(R.string.action_ok) { _, _ ->
+                minimizeApplication()
+            }
+            .setCancelable(false)
+            .create()
+        dialog.setOnDismissListener { mainHandler.removeCallbacks(tick) }
+        dialog.show()
+        styleDialogButtons(dialog)
+        mainHandler.postDelayed(tick, 1_000L)
+    }
+
+    private fun minimizeApplication() {
+        AppEventLogger.info("APP", "Application moved to background after import")
+        moveTaskToBack(true)
     }
 
     private fun performDeviceContactsImport(): Int {
@@ -1700,6 +1788,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showAdminPanel() {
+        adminPanelActivated = true
         val dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_admin_panel, null)
         val switchLogs = dialogView.findViewById<SwitchCompat>(R.id.switchLogs)
         val switchColorEditor = dialogView.findViewById<SwitchCompat>(R.id.switchColorEditor)

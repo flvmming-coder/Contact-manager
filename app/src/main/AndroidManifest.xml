@@ -13,6 +13,18 @@
         android:theme="@style/Theme.ContactManagerDemo">
 
         <activity
+            android:name=".ui.ContactEditorActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".ui.SettingsActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".ui.GroupManagementActivity"
+            android:exported="false" />
+
+        <activity
             android:name=".ui.MainActivity"
             android:exported="true">
             <intent-filter>
