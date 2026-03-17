@@ -99,6 +99,7 @@ class ContactPrefsStorage(context: Context) {
 
     fun getAllContacts(): MutableList<Contact> {
         ensureGroupsInitialized()
+        purgeExpiredTrashEntries()
         val raw = prefs.getString(KEY_CONTACTS, null)
         if (raw == null) {
             val seed = seedContacts()
@@ -162,6 +163,107 @@ class ContactPrefsStorage(context: Context) {
 
     fun clearAll() {
         prefs.edit().putString(KEY_CONTACTS, "[]").apply()
+    }
+
+    fun moveContactToTrash(contactId: Long, retentionDays: Int): Boolean {
+        val contacts = getAllContacts()
+        val target = contacts.firstOrNull { it.id == contactId } ?: return false
+        val updatedContacts = contacts.filterNot { it.id == contactId }
+        val trash = getTrashEntriesInternal().toMutableList()
+        trash.removeAll { it.contact.id == contactId }
+        trash.add(
+            DeletedContactEntry(
+                contact = target,
+                deletedAtMs = System.currentTimeMillis(),
+                retentionDays = retentionDays.coerceIn(7, 30),
+            ),
+        )
+        saveAllContacts(updatedContacts)
+        saveTrashEntriesInternal(trash)
+        return true
+    }
+
+    fun moveContactsToTrash(contactIds: Set<Long>, retentionDays: Int): Int {
+        if (contactIds.isEmpty()) return 0
+        val contacts = getAllContacts()
+        val toTrash = contacts.filter { contactIds.contains(it.id) }
+        if (toTrash.isEmpty()) return 0
+        val remain = contacts.filterNot { contactIds.contains(it.id) }
+        val trash = getTrashEntriesInternal().toMutableList()
+        toTrash.forEach { contact ->
+            trash.removeAll { it.contact.id == contact.id }
+            trash.add(
+                DeletedContactEntry(
+                    contact = contact,
+                    deletedAtMs = System.currentTimeMillis(),
+                    retentionDays = retentionDays.coerceIn(7, 30),
+                ),
+            )
+        }
+        saveAllContacts(remain)
+        saveTrashEntriesInternal(trash)
+        return toTrash.size
+    }
+
+    fun getTrashContacts(): List<DeletedContactEntry> {
+        purgeExpiredTrashEntries()
+        return getTrashEntriesInternal().sortedByDescending { it.deletedAtMs }
+    }
+
+    fun restoreFromTrash(contactId: Long): Boolean {
+        val trash = getTrashEntriesInternal().toMutableList()
+        val entry = trash.firstOrNull { it.contact.id == contactId } ?: return false
+        trash.removeAll { it.contact.id == contactId }
+
+        val contacts = getAllContacts().toMutableList()
+        val validCodes = getAvailableGroups().toSet()
+        val restoredContact = entry.contact.copy(
+            group = sanitizeGroup(entry.contact.group, validCodes),
+        )
+        val existingIndex = contacts.indexOfFirst { it.id == restoredContact.id }
+        if (existingIndex >= 0) {
+            contacts[existingIndex] = restoredContact
+        } else {
+            contacts.add(restoredContact)
+        }
+        saveAllContacts(contacts)
+        saveTrashEntriesInternal(trash)
+        return true
+    }
+
+    fun deleteFromTrash(contactId: Long): Boolean {
+        val trash = getTrashEntriesInternal().toMutableList()
+        val removed = trash.removeAll { it.contact.id == contactId }
+        if (!removed) return false
+        saveTrashEntriesInternal(trash)
+        return true
+    }
+
+    fun clearTrash() {
+        prefs.edit().putString(KEY_TRASH, "[]").apply()
+    }
+
+    fun getTrashRetentionDays(): Int {
+        return prefs.getInt(KEY_TRASH_RETENTION_DAYS, 30).coerceIn(7, 30)
+    }
+
+    fun setTrashRetentionDays(days: Int) {
+        val normalized = if (days <= 7) 7 else 30
+        prefs.edit().putInt(KEY_TRASH_RETENTION_DAYS, normalized).apply()
+    }
+
+    fun clearAllInfo() {
+        prefs.edit()
+            .putString(KEY_CONTACTS, "[]")
+            .putString(KEY_TRASH, "[]")
+            .putString(KEY_GROUPS, JSONArray(defaultGroups().map {
+                JSONObject().apply {
+                    put("code", it.code)
+                    put("title", it.title)
+                }
+            }).toString())
+            .putInt(KEY_TRASH_RETENTION_DAYS, 30)
+            .apply()
     }
 
     private fun parseContactsSafely(raw: String): MutableList<Contact> {
@@ -301,6 +403,93 @@ class ContactPrefsStorage(context: Context) {
         )
     }
 
+    private fun getTrashEntriesInternal(): List<DeletedContactEntry> {
+        val raw = prefs.getString(KEY_TRASH, null).orEmpty()
+        if (raw.isBlank()) return emptyList()
+        return runCatching {
+            val result = mutableListOf<DeletedContactEntry>()
+            val array = JSONArray(raw)
+            val validCodes = getAvailableGroups().toSet()
+            for (i in 0 until array.length()) {
+                val obj = array.optJSONObject(i) ?: continue
+                val contactObj = obj.optJSONObject("contact") ?: continue
+                val id = contactObj.optLong("id", 0L)
+                val name = repairMojibake(contactObj.optString("name")).trim()
+                val phone = repairMojibake(contactObj.optString("phone")).trim()
+                if (id <= 0L || name.isBlank() || phone.isBlank()) continue
+
+                val deletedAt = obj.optLong("deletedAtMs", 0L)
+                val retentionDays = obj.optInt("retentionDays", 30).coerceIn(7, 30)
+                if (deletedAt <= 0L) continue
+
+                result.add(
+                    DeletedContactEntry(
+                        contact = Contact(
+                            id = id,
+                            name = name,
+                            lastName = repairMojibake(contactObj.optString("lastName")).trim().ifBlank { null },
+                            phone = phone,
+                            email = repairMojibake(contactObj.optString("email")).trim().ifBlank { null },
+                            address = repairMojibake(contactObj.optString("address")).trim().ifBlank { null },
+                            birthday = repairMojibake(contactObj.optString("birthday")).trim().ifBlank { null },
+                            comment = repairMojibake(contactObj.optString("comment")).trim().ifBlank { null },
+                            avatarColor = repairMojibake(contactObj.optString("avatarColor")).trim().ifBlank { null },
+                            avatarPhotoUri = repairMojibake(contactObj.optString("avatarPhotoUri")).trim().ifBlank { null },
+                            group = sanitizeGroup(
+                                normalizeLegacyGroup(repairMojibake(contactObj.optString("group", GROUP_UNASSIGNED))),
+                                validCodes,
+                            ),
+                            isImported = contactObj.optBoolean("isImported", false),
+                        ),
+                        deletedAtMs = deletedAt,
+                        retentionDays = retentionDays,
+                    ),
+                )
+            }
+            result
+        }.getOrElse { emptyList() }
+    }
+
+    private fun saveTrashEntriesInternal(entries: List<DeletedContactEntry>) {
+        val array = JSONArray()
+        entries.forEach { entry ->
+            array.put(
+                JSONObject().apply {
+                    put("deletedAtMs", entry.deletedAtMs)
+                    put("retentionDays", entry.retentionDays)
+                    put(
+                        "contact",
+                        JSONObject().apply {
+                            put("id", entry.contact.id)
+                            put("name", entry.contact.name)
+                            put("lastName", entry.contact.lastName)
+                            put("phone", entry.contact.phone)
+                            put("email", entry.contact.email)
+                            put("address", entry.contact.address)
+                            put("birthday", entry.contact.birthday)
+                            put("comment", entry.contact.comment)
+                            put("avatarColor", entry.contact.avatarColor)
+                            put("avatarPhotoUri", entry.contact.avatarPhotoUri)
+                            put("group", entry.contact.group)
+                            put("isImported", entry.contact.isImported)
+                        },
+                    )
+                },
+            )
+        }
+        prefs.edit().putString(KEY_TRASH, array.toString()).apply()
+    }
+
+    private fun purgeExpiredTrashEntries() {
+        val current = getTrashEntriesInternal()
+        if (current.isEmpty()) return
+        val now = System.currentTimeMillis()
+        val alive = current.filter { it.expiresAtMs > now }
+        if (alive.size != current.size) {
+            saveTrashEntriesInternal(alive)
+        }
+    }
+
     private fun normalizeLegacyGroup(group: String): String {
         return when (group.trim().lowercase(Locale.getDefault())) {
             GROUP_ALL,
@@ -381,6 +570,8 @@ class ContactPrefsStorage(context: Context) {
         private const val PREFS_NAME = "contact_manager_prefs"
         private const val KEY_CONTACTS = "contacts"
         private const val KEY_GROUPS = "groups"
+        private const val KEY_TRASH = "trash_contacts"
+        private const val KEY_TRASH_RETENTION_DAYS = "trash_retention_days"
 
         const val GROUP_ALL = "all"
         const val GROUP_UNASSIGNED = "ungrouped"

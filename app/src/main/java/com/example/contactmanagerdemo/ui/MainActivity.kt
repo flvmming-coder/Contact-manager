@@ -57,6 +57,7 @@ import com.example.contactmanagerdemo.core.ThemeManager
 import com.example.contactmanagerdemo.core.UpdateChecker
 import com.example.contactmanagerdemo.data.Contact
 import com.example.contactmanagerdemo.data.ContactPrefsStorage
+import com.example.contactmanagerdemo.data.DeletedContactEntry
 import java.io.OutputStreamWriter
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -397,13 +398,13 @@ class MainActivity : AppCompatActivity() {
     private fun showBulkDeleteDialog() {
         if (selectedContactIds.isEmpty()) return
         val idsToDelete = selectedContactIds.toSet()
+        val retentionDays = storage.getTrashRetentionDays()
         val dialog = AlertDialog.Builder(this)
             .setTitle(R.string.bulk_delete_title)
-            .setMessage(getString(R.string.bulk_delete_message, idsToDelete.size))
+            .setMessage(getString(R.string.bulk_delete_message, idsToDelete.size, retentionDays))
             .setPositiveButton(R.string.action_delete) { _, _ ->
-                val updated = storage.getAllContacts().filterNot { idsToDelete.contains(it.id) }
-                storage.saveAllContacts(updated)
-                AppEventLogger.info("DATA", "Bulk delete count=${idsToDelete.size}")
+                val moved = storage.moveContactsToTrash(idsToDelete, retentionDays)
+                AppEventLogger.info("DATA", "Bulk delete to trash count=$moved")
                 clearSelectionMode()
                 loadContactsAndRender()
             }
@@ -899,12 +900,19 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showDeleteDialog(contact: Contact) {
+        val retentionDays = storage.getTrashRetentionDays()
         val dialog = AlertDialog.Builder(this)
             .setTitle(R.string.title_delete_contact)
-            .setMessage(getString(R.string.message_delete_contact, listOfNotNull(contact.name, contact.lastName).joinToString(" ")))
+            .setMessage(
+                getString(
+                    R.string.message_delete_contact,
+                    listOfNotNull(contact.name, contact.lastName).joinToString(" "),
+                    retentionDays,
+                ),
+            )
             .setPositiveButton(R.string.action_delete) { _, _ ->
-                storage.delete(contact.id)
-                AppEventLogger.info("DATA", "Deleted contact id=${contact.id}")
+                storage.moveContactToTrash(contact.id, retentionDays)
+                AppEventLogger.info("DATA", "Deleted contact to trash id=${contact.id}, retention=$retentionDays")
                 loadContactsAndRender()
             }
             .setNegativeButton(R.string.action_cancel, null)
@@ -1053,9 +1061,13 @@ class MainActivity : AppCompatActivity() {
                 dialog.dismiss()
                 showThemeSelectorDialog()
             }
+            dialogView.findViewById<Button>(R.id.btnSettingsTrash).setOnClickListener {
+                dialog.dismiss()
+                showTrashDialog()
+            }
             dialogView.findViewById<Button>(R.id.btnSettingsClearAll).setOnClickListener {
                 dialog.dismiss()
-                confirmClearAllContacts()
+                confirmClearAllInfo()
             }
             styleDialogButtons(dialog)
         }
@@ -1077,6 +1089,98 @@ class MainActivity : AppCompatActivity() {
                 Toast.makeText(this, R.string.settings_theme_saved, Toast.LENGTH_SHORT).show()
                 dialog.dismiss()
                 recreate()
+            }
+            .setNegativeButton(R.string.action_cancel, null)
+            .create()
+        dialog.show()
+        styleDialogButtons(dialog)
+    }
+
+    private fun showTrashDialog() {
+        val entries = storage.getTrashContacts()
+        val items = mutableListOf<String>()
+        items.add(getString(R.string.trash_action_retention))
+        items.add(getString(R.string.trash_action_clear))
+        entries.forEach { entry ->
+            val title = listOfNotNull(entry.contact.name, entry.contact.lastName).joinToString(" ").trim()
+            val remain = entry.remainingDays(System.currentTimeMillis())
+            items.add(getString(R.string.trash_contact_item, title, remain))
+        }
+
+        val dialog = AlertDialog.Builder(this)
+            .setTitle(R.string.settings_trash)
+            .setItems(items.toTypedArray()) { _, which ->
+                when {
+                    which == 0 -> showTrashRetentionDialog()
+                    which == 1 -> confirmClearTrash()
+                    else -> {
+                        val entry = entries.getOrNull(which - 2) ?: return@setItems
+                        showTrashEntryActions(entry)
+                    }
+                }
+            }
+            .setNegativeButton(R.string.action_cancel, null)
+            .create()
+        dialog.show()
+        styleDialogButtons(dialog)
+    }
+
+    private fun showTrashRetentionDialog() {
+        val options = arrayOf(
+            getString(R.string.trash_retention_7_days),
+            getString(R.string.trash_retention_30_days),
+        )
+        val selectedIndex = if (storage.getTrashRetentionDays() <= 7) 0 else 1
+        val dialog = AlertDialog.Builder(this)
+            .setTitle(R.string.trash_retention_title)
+            .setSingleChoiceItems(options, selectedIndex) { d, which ->
+                storage.setTrashRetentionDays(if (which == 0) 7 else 30)
+                Toast.makeText(this, R.string.trash_retention_saved, Toast.LENGTH_SHORT).show()
+                d.dismiss()
+            }
+            .setNegativeButton(R.string.action_cancel, null)
+            .create()
+        dialog.show()
+        styleDialogButtons(dialog)
+    }
+
+    private fun showTrashEntryActions(entry: DeletedContactEntry) {
+        val title = listOfNotNull(entry.contact.name, entry.contact.lastName).joinToString(" ").trim()
+        val actions = arrayOf(
+            getString(R.string.trash_action_restore),
+            getString(R.string.trash_action_delete_forever),
+        )
+        val dialog = AlertDialog.Builder(this)
+            .setTitle(title)
+            .setItems(actions) { _, which ->
+                when (which) {
+                    0 -> {
+                        if (storage.restoreFromTrash(entry.contact.id)) {
+                            Toast.makeText(this, R.string.trash_restore_done, Toast.LENGTH_SHORT).show()
+                            loadContactsAndRender()
+                        }
+                    }
+
+                    1 -> {
+                        if (storage.deleteFromTrash(entry.contact.id)) {
+                            Toast.makeText(this, R.string.trash_delete_forever_done, Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                }
+            }
+            .setNegativeButton(R.string.action_cancel, null)
+            .create()
+        dialog.show()
+        styleDialogButtons(dialog)
+    }
+
+    private fun confirmClearTrash() {
+        val dialog = AlertDialog.Builder(this)
+            .setTitle(R.string.trash_clear_title)
+            .setMessage(R.string.trash_clear_message)
+            .setPositiveButton(R.string.action_delete) { _, _ ->
+                storage.clearTrash()
+                Toast.makeText(this, R.string.trash_clear_done, Toast.LENGTH_SHORT).show()
             }
             .setNegativeButton(R.string.action_cancel, null)
             .create()
@@ -1130,15 +1234,17 @@ class MainActivity : AppCompatActivity() {
         exportVcfLauncher.launch(fileName)
     }
 
-    private fun confirmClearAllContacts() {
+    private fun confirmClearAllInfo() {
         val dialog = AlertDialog.Builder(this)
-            .setTitle(R.string.settings_clear_all_title)
-            .setMessage(R.string.settings_clear_all_message)
+            .setTitle(R.string.settings_clear_all_info_title)
+            .setMessage(R.string.settings_clear_all_info_message)
             .setPositiveButton(R.string.action_delete) { _, _ ->
-                storage.clearAll()
+                storage.clearAllInfo()
+                AppEventLogger.clearAllLogs(this)
+                devPrefs.edit().clear().apply()
                 loadContactsAndRender()
-                AppEventLogger.info("SETTINGS", "All contacts removed by user")
-                Toast.makeText(this, R.string.settings_clear_all_done, Toast.LENGTH_SHORT).show()
+                AppEventLogger.info("SETTINGS", "All app info removed by user")
+                Toast.makeText(this, R.string.settings_clear_all_info_done, Toast.LENGTH_SHORT).show()
             }
             .setNegativeButton(R.string.action_cancel, null)
             .create()
@@ -1361,8 +1467,16 @@ class MainActivity : AppCompatActivity() {
     private fun resolveImportedGroupCode(contactId: Long, deviceGroupTitles: Map<Long, String>): String {
         val titles = queryContactGroupTitles(contactId, deviceGroupTitles)
         if (titles.isEmpty()) return ContactPrefsStorage.GROUP_OTHER
-        val targetTitle = titles.firstOrNull { !isSystemContactGroupTitle(it) } ?: titles.first()
-        return storage.ensureGroupByTitle(targetTitle)
+        val createdCodes = titles.map { title -> storage.ensureGroupByTitle(title) }
+        val preferred = titles
+            .mapIndexed { index, title -> index to title }
+            .firstOrNull { (_, title) -> !isSystemContactGroupTitle(title) }
+            ?.first
+        return if (preferred != null) {
+            createdCodes.getOrElse(preferred) { ContactPrefsStorage.GROUP_OTHER }
+        } else {
+            createdCodes.firstOrNull() ?: ContactPrefsStorage.GROUP_OTHER
+        }
     }
 
     private fun queryContactGroupTitles(contactId: Long, deviceGroupTitles: Map<Long, String>): List<String> {

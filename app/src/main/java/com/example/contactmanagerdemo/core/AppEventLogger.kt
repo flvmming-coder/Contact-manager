@@ -87,6 +87,13 @@ object AppEventLogger {
         }.getOrNull()
     }
 
+    fun clearAllLogs(context: Context) {
+        val files = listLogFiles(context)
+        files.forEach { file ->
+            runCatching { file.delete() }
+        }
+    }
+
     fun info(event: String, message: String) {
         write("INFO", event, message, null, force = false)
     }

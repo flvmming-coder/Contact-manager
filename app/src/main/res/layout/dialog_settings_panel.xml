@@ -30,6 +30,14 @@
         android:text="@string/settings_change_theme" />
 
     <Button
+        android:id="@+id/btnSettingsTrash"
+        style="@style/Widget.ContactManager.GradientButton.Small"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:text="@string/settings_trash" />
+
+    <Button
         android:id="@+id/btnSettingsClearAll"
         style="@style/Widget.ContactManager.GradientButton.Small"
         android:layout_width="match_parent"

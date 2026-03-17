@@ -1,4 +1,4 @@
-﻿# Contact Manager v0.16.1 (PRE-RELEASE)
+﻿# Contact Manager v0.16.1 (RELEASE)
 
 Причина обновления:
 - нужно расширить управление группами внутри приложения;
@@ -30,3 +30,4 @@
 
 APK:
 - ContactManager-v0.16.1-debug.apk
+
