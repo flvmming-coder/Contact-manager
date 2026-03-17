@@ -1,4 +1,4 @@
-name: Publish v0.15.3 Pre-release
+name: Publish v0.15.3 Release
 
 on:
   workflow_dispatch:
@@ -15,18 +15,10 @@ jobs:
     permissions:
       contents: write
     steps:
-      - name: Verify release token
-        run: |
-          if [ -z "${{ secrets.FLVMMING_CODER_TOKEN }}" ]; then
-            echo "Missing repository secret FLVMMING_CODER_TOKEN."
-            echo "Add it in Settings -> Secrets and variables -> Actions."
-            exit 1
-          fi
-
       - name: Force v0.15.2 to release
         uses: actions/github-script@v7
         with:
-          github-token: ${{ secrets.FLVMMING_CODER_TOKEN }}
+          github-token: ${{ secrets.FLVMMING_CODER_TOKEN || github.token }}
           script: |
             const owner = context.repo.owner;
             const repo = context.repo.repo;
@@ -57,31 +49,24 @@ jobs:
             });
             core.info("v0.15.2 updated to release.");
 
-  publish-v0-15-3-prerelease:
+  publish-v0-15-3-release:
     needs: ensure-v0-15-2-release
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
-      - name: Verify release token
-        run: |
-          if [ -z "${{ secrets.FLVMMING_CODER_TOKEN }}" ]; then
-            echo "Missing repository secret FLVMMING_CODER_TOKEN."
-            echo "Add it in Settings -> Secrets and variables -> Actions."
-            exit 1
-          fi
-
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Publish or update v0.15.3 pre-release
+      - name: Publish or update v0.15.3 release
         uses: softprops/action-gh-release@v2
         with:
-          token: ${{ secrets.FLVMMING_CODER_TOKEN }}
+          token: ${{ secrets.FLVMMING_CODER_TOKEN || github.token }}
           tag_name: v0.15.3
           name: Contact Manager v0.15.3 (19)
-          prerelease: true
+          prerelease: false
           draft: false
+          make_latest: false
           body_path: versions/Contact Manager v0.15.3/README.md
           files: versions/Contact Manager v0.15.3/ContactManager-v0.15.3-debug.apk
           fail_on_unmatched_files: true

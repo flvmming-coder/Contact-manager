@@ -37,13 +37,11 @@
 
     <Button
         android:id="@+id/btnCheckUpdates"
+        style="@style/Widget.ContactManager.GradientButton.Small"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="12dp"
-        android:background="@drawable/bg_button_gradient_rect"
-        android:text="@string/admin_check_updates"
-        android:textColor="#0F172A"
-        android:textStyle="bold" />
+        android:text="@string/admin_check_updates" />
 
     <TextView
         android:id="@+id/textUpdateResult"
@@ -55,12 +53,10 @@
 
     <Button
         android:id="@+id/btnDevelopersInfo"
+        style="@style/Widget.ContactManager.GradientButton.Small"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="16dp"
-        android:background="@drawable/bg_button_gradient_rect"
-        android:text="@string/admin_developers_button"
-        android:textColor="#0F172A"
-        android:textStyle="bold" />
+        android:text="@string/admin_developers_button" />
 
 </LinearLayout>

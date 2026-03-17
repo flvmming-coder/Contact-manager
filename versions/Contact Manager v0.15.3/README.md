@@ -1,4 +1,4 @@
-﻿# Contact Manager v0.15.3 (PRE-RELEASE)
+﻿# Contact Manager v0.15.3 (RELEASE)
 
 Причина обновления:
 - в версии 0.15.2 требовалась дальнейшая доработка механизма обновлений и UI-служебных окон;
@@ -35,3 +35,4 @@
 
 APK:
 - `ContactManager-v0.15.3-debug.apk`
+

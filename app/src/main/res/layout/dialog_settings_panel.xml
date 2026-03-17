@@ -8,41 +8,33 @@
 
     <Button
         android:id="@+id/btnSettingsImport"
+        style="@style/Widget.ContactManager.GradientButton.Small"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:background="@drawable/bg_button_gradient_rect"
-        android:text="@string/settings_import_contacts"
-        android:textColor="#0F172A"
-        android:textStyle="bold" />
+        android:text="@string/settings_import_contacts" />
 
     <Button
         android:id="@+id/btnSettingsExport"
+        style="@style/Widget.ContactManager.GradientButton.Small"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="8dp"
-        android:background="@drawable/bg_button_gradient_rect"
-        android:text="@string/settings_export_vcf"
-        android:textColor="#0F172A"
-        android:textStyle="bold" />
+        android:text="@string/settings_export_vcf" />
 
     <Button
         android:id="@+id/btnSettingsTheme"
+        style="@style/Widget.ContactManager.GradientButton.Small"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="8dp"
-        android:background="@drawable/bg_button_gradient_rect"
-        android:text="@string/settings_change_theme"
-        android:textColor="#0F172A"
-        android:textStyle="bold" />
+        android:text="@string/settings_change_theme" />
 
     <Button
         android:id="@+id/btnSettingsClearAll"
+        style="@style/Widget.ContactManager.GradientButton.Small"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="8dp"
-        android:background="@drawable/bg_button_gradient_rect"
-        android:text="@string/settings_clear_all"
-        android:textColor="#0F172A"
-        android:textStyle="bold" />
+        android:text="@string/settings_clear_all" />
 
 </LinearLayout>

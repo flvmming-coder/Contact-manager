@@ -79,13 +79,11 @@
 
         <Button
             android:id="@+id/btnPickBirthday"
+            style="@style/Widget.ContactManager.GradientButton.Small"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginStart="8dp"
-            android:background="@drawable/bg_button_gradient_rect"
-            android:text="@string/action_pick_date"
-            android:textColor="#0F172A"
-            android:textStyle="bold" />
+            android:text="@string/action_pick_date" />
     </LinearLayout>
 
     <EditText
@@ -142,22 +140,18 @@
 
             <Button
                 android:id="@+id/btnPickAvatarPhoto"
+                style="@style/Widget.ContactManager.GradientButton.Small"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:background="@drawable/bg_button_gradient_rect"
-                android:text="@string/action_pick_avatar_photo"
-                android:textColor="#0F172A"
-                android:textStyle="bold" />
+                android:text="@string/action_pick_avatar_photo" />
 
             <Button
                 android:id="@+id/btnClearAvatarPhoto"
+                style="@style/Widget.ContactManager.GradientButton.Small"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="6dp"
-                android:background="@drawable/bg_button_gradient_rect"
-                android:text="@string/action_clear_avatar_photo"
-                android:textColor="#0F172A"
-                android:textStyle="bold" />
+                android:text="@string/action_clear_avatar_photo" />
         </LinearLayout>
     </LinearLayout>
 
@@ -171,13 +165,11 @@
 
         <Button
             android:id="@+id/btnPickAvatarColor"
+            style="@style/Widget.ContactManager.GradientButton.Small"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:background="@drawable/bg_button_gradient_rect"
-            android:text="@string/action_pick_avatar_color"
-            android:textColor="#0F172A"
-            android:textStyle="bold" />
+            android:text="@string/action_pick_avatar_color" />
 
         <View
             android:id="@+id/viewAvatarColorPreview"

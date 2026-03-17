@@ -74,6 +74,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var textEmpty: TextView
     private lateinit var selectionActionsBar: LinearLayout
     private lateinit var textSelectionCount: TextView
+    private lateinit var btnAddContact: View
     private val selectedContactIds = linkedSetOf<Long>()
 
     private var allContacts: MutableList<Contact> = mutableListOf()
@@ -192,7 +193,8 @@ class MainActivity : AppCompatActivity() {
 
             setupFilterGroups()
 
-            findViewById<View>(R.id.btnAddContact).setOnClickListener {
+            btnAddContact = findViewById(R.id.btnAddContact)
+            btnAddContact.setOnClickListener {
                 AppEventLogger.info("UI", "Add contact button clicked")
                 showContactDialog(null)
             }
@@ -313,10 +315,13 @@ class MainActivity : AppCompatActivity() {
             button.background = ContextCompat.getDrawable(this, R.drawable.bg_button_gradient_rect)
             button.setTextColor(0xFF0F172A.toInt())
             button.isAllCaps = false
-            button.setPadding(dp(14), dp(8), dp(14), dp(8))
+            button.textSize = 12f
+            button.minHeight = dp(34)
+            button.minimumHeight = dp(34)
+            button.setPadding(dp(10), dp(6), dp(10), dp(6))
             (button.layoutParams as? ViewGroup.MarginLayoutParams)?.let { lp ->
-                lp.marginStart = dp(6)
-                lp.marginEnd = dp(6)
+                lp.marginStart = dp(4)
+                lp.marginEnd = dp(4)
                 button.layoutParams = lp
             }
         }
@@ -357,6 +362,7 @@ class MainActivity : AppCompatActivity() {
     private fun updateSelectionUi() {
         val count = selectedContactIds.size
         selectionActionsBar.visibility = if (count > 0) View.VISIBLE else View.GONE
+        btnAddContact.visibility = if (count > 0) View.GONE else View.VISIBLE
         textSelectionCount.text = getString(R.string.selection_count, count)
     }
 

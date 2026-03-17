@@ -195,6 +195,6 @@ class ContactAdapter(
 
     companion object {
         private const val DOUBLE_TAP_WINDOW_MS = 1_000L
-        private const val HOLD_TO_SELECT_MS = 2_000L
+        private const val HOLD_TO_SELECT_MS = 1_000L
     }
 }
