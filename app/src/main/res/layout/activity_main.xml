@@ -95,6 +95,8 @@
                 android:layout_height="4dp"
                 android:layout_marginTop="10dp"
                 android:indeterminate="true"
+                android:indeterminateTint="#ea580c"
+                android:progressTint="#ea580c"
                 android:visibility="gone" />
         </LinearLayout>
 

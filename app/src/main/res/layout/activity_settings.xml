@@ -21,7 +21,7 @@
             android:background="@android:color/transparent"
             android:contentDescription="@string/action_cancel"
             android:padding="8dp"
-            android:src="@android:drawable/ic_media_previous"
+            app:srcCompat="@drawable/ic_backward"
             app:tint="@android:color/white" />
 
         <TextView

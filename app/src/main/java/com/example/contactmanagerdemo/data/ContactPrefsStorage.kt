@@ -28,6 +28,7 @@ class ContactPrefsStorage(context: Context) {
         return when (code) {
             GROUP_ALL -> appContext.getString(R.string.group_all)
             GROUP_UNASSIGNED -> appContext.getString(R.string.group_unassigned)
+            GROUP_SERVICE -> appContext.getString(R.string.group_service)
             else -> getStoredGroups().firstOrNull { it.code == code }?.title
                 ?: appContext.getString(R.string.group_unassigned)
         }
@@ -57,10 +58,32 @@ class ContactPrefsStorage(context: Context) {
         return ensureGroupByTitle(title)
     }
 
+    fun ensureServiceGroup(): String {
+        val groups = getStoredGroups().toMutableList()
+        val index = groups.indexOfFirst { it.code == GROUP_SERVICE }
+        if (index >= 0) {
+            val expectedTitle = appContext.getString(R.string.group_service)
+            if (groups[index].title != expectedTitle) {
+                groups[index] = groups[index].copy(title = expectedTitle)
+                saveStoredGroups(groups)
+            }
+            return GROUP_SERVICE
+        }
+
+        groups.add(
+            GroupDef(
+                code = GROUP_SERVICE,
+                title = appContext.getString(R.string.group_service),
+            ),
+        )
+        saveStoredGroups(groups)
+        return GROUP_SERVICE
+    }
+
     fun renameGroup(code: String, rawTitle: String): Boolean {
         val title = rawTitle.trim()
         if (title.isBlank()) return false
-        if (code == GROUP_ALL || code == GROUP_UNASSIGNED) return false
+        if (code == GROUP_ALL || code == GROUP_UNASSIGNED || code == GROUP_SERVICE) return false
 
         val groups = getStoredGroups().toMutableList()
         val index = groups.indexOfFirst { it.code == code }
@@ -75,7 +98,7 @@ class ContactPrefsStorage(context: Context) {
     }
 
     fun deleteGroup(code: String): Int {
-        if (code == GROUP_ALL || code == GROUP_UNASSIGNED) return 0
+        if (code == GROUP_ALL || code == GROUP_UNASSIGNED || code == GROUP_SERVICE) return 0
 
         val groups = getStoredGroups().toMutableList()
         val removed = groups.removeAll { it.code == code }
@@ -256,12 +279,7 @@ class ContactPrefsStorage(context: Context) {
         prefs.edit()
             .putString(KEY_CONTACTS, "[]")
             .putString(KEY_TRASH, "[]")
-            .putString(KEY_GROUPS, JSONArray(defaultGroups().map {
-                JSONObject().apply {
-                    put("code", it.code)
-                    put("title", it.title)
-                }
-            }).toString())
+            .putString(KEY_GROUPS, "[]")
             .putInt(KEY_TRASH_RETENTION_DAYS, 30)
             .apply()
     }
@@ -512,6 +530,7 @@ class ContactPrefsStorage(context: Context) {
             "другое",
             fixMojibakeToken("другое") -> GROUP_OTHER
 
+            GROUP_SERVICE -> GROUP_SERVICE
             else -> group.trim()
         }
     }
@@ -579,5 +598,6 @@ class ContactPrefsStorage(context: Context) {
         const val GROUP_FRIENDS = "friends"
         const val GROUP_WORK = "work"
         const val GROUP_OTHER = "other"
+        const val GROUP_SERVICE = "service"
     }
 }

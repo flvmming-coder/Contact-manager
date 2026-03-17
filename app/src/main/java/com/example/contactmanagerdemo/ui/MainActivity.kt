@@ -53,6 +53,7 @@ import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.google.android.gms.common.api.ApiException
 import com.example.contactmanagerdemo.R
 import com.example.contactmanagerdemo.core.AppEventLogger
+import com.example.contactmanagerdemo.core.PhoneNumberFormatter
 import com.example.contactmanagerdemo.core.ThemeManager
 import com.example.contactmanagerdemo.core.UpdateChecker
 import com.example.contactmanagerdemo.data.Contact
@@ -254,8 +255,13 @@ class MainActivity : AppCompatActivity() {
 
     private fun setupFilterGroups() {
         val previousGroupCode = selectedGroupCode
-        filterGroupCodes = storage.getFilterGroups()
-        editGroupCodes = storage.getEditableGroups()
+        val showServiceGroup = isServiceGroupVisible()
+        filterGroupCodes = storage.getFilterGroups().filter { code ->
+            showServiceGroup || code != ContactPrefsStorage.GROUP_SERVICE
+        }
+        editGroupCodes = storage.getEditableGroups().filter { code ->
+            showServiceGroup || code != ContactPrefsStorage.GROUP_SERVICE
+        }
         selectedGroupCode = if (filterGroupCodes.contains(previousGroupCode)) {
             previousGroupCode
         } else {
@@ -300,7 +306,13 @@ class MainActivity : AppCompatActivity() {
         selectedContactIds.removeAll { it !in allIds }
 
         val list = allContacts
-            .filter { selectedGroupCode == ContactPrefsStorage.GROUP_ALL || it.group == selectedGroupCode }
+            .filter {
+                if (selectedGroupCode == ContactPrefsStorage.GROUP_ALL) {
+                    it.group != ContactPrefsStorage.GROUP_SERVICE
+                } else {
+                    it.group == selectedGroupCode
+                }
+            }
             .filter {
                 val fullName = listOfNotNull(it.name, it.lastName).joinToString(" ").lowercase(Locale.getDefault())
                 query.isBlank() ||
@@ -1512,8 +1524,10 @@ class MainActivity : AppCompatActivity() {
         photoUriFromContacts: String?,
         deviceGroupTitles: Map<Long, String>,
     ): ImportedContactDetails? {
-        val phone = queryPhone(contactId).orEmpty()
-        if (phone.isBlank()) return null
+        val rawPhone = queryPhone(contactId).orEmpty()
+        if (rawPhone.isBlank()) return null
+        val phone = PhoneNumberFormatter.normalizeImportedPhone(rawPhone)
+        val isService = PhoneNumberFormatter.isServiceNumber(rawPhone)
 
         val (name, lastName) = queryNameParts(contactId, displayName)
         if (name.isBlank()) return null
@@ -1527,7 +1541,7 @@ class MainActivity : AppCompatActivity() {
             birthday = normalizeImportedBirthday(queryBirthday(contactId)),
             comment = queryNote(contactId),
             avatarPhotoUri = photoUriFromContacts?.trim()?.ifBlank { null } ?: queryPhotoUri(contactId),
-            groupCode = resolveImportedGroupCode(contactId, deviceGroupTitles),
+            groupCode = resolveImportedGroupCode(contactId, deviceGroupTitles, isService),
         )
     }
 
@@ -1552,7 +1566,15 @@ class MainActivity : AppCompatActivity() {
         return result
     }
 
-    private fun resolveImportedGroupCode(contactId: Long, deviceGroupTitles: Map<Long, String>): String {
+    private fun resolveImportedGroupCode(
+        contactId: Long,
+        deviceGroupTitles: Map<Long, String>,
+        isService: Boolean,
+    ): String {
+        if (isService) {
+            storage.ensureServiceGroup()
+            return ContactPrefsStorage.GROUP_SERVICE
+        }
         val titles = queryContactGroupTitles(contactId, deviceGroupTitles)
         if (titles.isEmpty()) return ContactPrefsStorage.GROUP_OTHER
         val createdCodes = titles.map { title -> storage.ensureGroupByTitle(title) }
@@ -1617,15 +1639,14 @@ class MainActivity : AppCompatActivity() {
 
         if (result != null) {
             val (givenName, familyName, display) = result
-            val baseName = when {
-                givenName.isNotBlank() -> givenName
-                display.isNotBlank() -> display
-                else -> fallbackDisplayName.trim()
+            if (givenName.isNotBlank() || !familyName.isNullOrBlank()) {
+                return givenName.ifBlank { fallbackDisplayName.trim() } to familyName
             }
-            return baseName to familyName
+            val sourceDisplay = if (display.isNotBlank()) display else fallbackDisplayName.trim()
+            return splitDisplayName(sourceDisplay)
         }
 
-        return fallbackDisplayName.trim() to null
+        return splitDisplayName(fallbackDisplayName.trim())
     }
 
     private fun queryPhone(contactId: Long): String? {
@@ -1750,8 +1771,17 @@ class MainActivity : AppCompatActivity() {
 
     private fun contactKey(name: String, lastName: String?, phone: String): String {
         val fullName = listOfNotNull(name, lastName).joinToString(" ").trim().lowercase(Locale.getDefault())
-        val normalizedPhone = phone.filter { it.isDigit() || it == '+' }
+        val normalizedPhone = PhoneNumberFormatter.normalizedPhoneKey(phone)
         return "$fullName|$normalizedPhone"
+    }
+
+    private fun splitDisplayName(displayName: String): Pair<String, String?> {
+        val parts = displayName.split(" ").map { it.trim() }.filter { it.isNotBlank() }
+        return when {
+            parts.isEmpty() -> "" to null
+            parts.size == 1 -> parts[0] to null
+            else -> parts.dropLast(1).joinToString(" ") to parts.last()
+        }
     }
 
     private fun <T> queryDataByMimeType(
@@ -1789,6 +1819,12 @@ class MainActivity : AppCompatActivity() {
 
     private fun showAdminPanel() {
         adminPanelActivated = true
+        if (!isServiceGroupVisible()) {
+            setServiceGroupVisible(true)
+            setupFilterGroups()
+            renderContacts()
+            AppEventLogger.info("ADMIN", "Service group is now visible after admin panel activation")
+        }
         val dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_admin_panel, null)
         val switchLogs = dialogView.findViewById<SwitchCompat>(R.id.switchLogs)
         val switchColorEditor = dialogView.findViewById<SwitchCompat>(R.id.switchColorEditor)
@@ -1852,6 +1888,14 @@ class MainActivity : AppCompatActivity() {
 
     private fun setAvatarColorEditorEnabled(enabled: Boolean) {
         devPrefs.edit().putBoolean(KEY_AVATAR_COLOR_EDITOR_ENABLED, enabled).apply()
+    }
+
+    private fun isServiceGroupVisible(): Boolean {
+        return devPrefs.getBoolean(KEY_SERVICE_GROUP_VISIBLE, false)
+    }
+
+    private fun setServiceGroupVisible(enabled: Boolean) {
+        devPrefs.edit().putBoolean(KEY_SERVICE_GROUP_VISIBLE, enabled).apply()
     }
 
     private fun showDevelopersDialog() {
@@ -2168,5 +2212,6 @@ class MainActivity : AppCompatActivity() {
         private const val KEY_NETWORK_MODE_ENABLED = "network_mode_enabled"
         private const val KEY_NETWORK_ACCOUNT = "network_mode_account"
         private const val KEY_AVATAR_COLOR_EDITOR_ENABLED = "avatar_color_editor_enabled"
+        private const val KEY_SERVICE_GROUP_VISIBLE = "service_group_visible"
     }
 }

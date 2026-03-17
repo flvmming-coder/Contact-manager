@@ -45,6 +45,7 @@
     <string name="group_friends">\u0414\u0440\u0443\u0437\u044c\u044f</string>
     <string name="group_work">\u0420\u0430\u0431\u043e\u0442\u0430</string>
     <string name="group_other">\u0414\u0440\u0443\u0433\u043e\u0435</string>
+    <string name="group_service">\u0421\u043b\u0443\u0436\u0435\u0431\u043d\u044b\u0435</string>
     <string name="group_unassigned">\u0411\u0435\u0437 \u0433\u0440\u0443\u043f\u043f\u044b</string>
     <string name="group_manage_title">\u0423\u043f\u0440\u0430\u0432\u043b\u0435\u043d\u0438\u0435 \u0433\u0440\u0443\u043f\u043f\u0430\u043c\u0438</string>
     <string name="group_manage_create">\u002B \u0421\u043e\u0437\u0434\u0430\u0442\u044c \u0433\u0440\u0443\u043f\u043f\u0443</string>

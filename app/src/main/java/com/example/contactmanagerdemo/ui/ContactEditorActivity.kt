@@ -21,6 +21,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import com.example.contactmanagerdemo.R
 import com.example.contactmanagerdemo.core.AppEventLogger
+import com.example.contactmanagerdemo.core.PhoneNumberFormatter
 import com.example.contactmanagerdemo.data.Contact
 import com.example.contactmanagerdemo.data.ContactPrefsStorage
 import java.text.SimpleDateFormat
@@ -47,6 +48,7 @@ class ContactEditorActivity : AppCompatActivity() {
     private lateinit var spinnerGroup: Spinner
     private lateinit var imageAvatarPreview: ImageView
     private lateinit var textAvatarPreview: TextView
+    private val devPrefs by lazy { getSharedPreferences(DEV_PREFS_NAME, MODE_PRIVATE) }
 
     private val pickAvatarPhotoLauncher =
         registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -93,7 +95,10 @@ class ContactEditorActivity : AppCompatActivity() {
         imageAvatarPreview = findViewById(R.id.imageAvatarPreview)
         textAvatarPreview = findViewById(R.id.textAvatarPreview)
 
-        editGroupCodes = storage.getEditableGroups()
+        val showServiceGroup = devPrefs.getBoolean(KEY_SERVICE_GROUP_VISIBLE, false)
+        editGroupCodes = storage.getEditableGroups().filter { code ->
+            showServiceGroup || code != ContactPrefsStorage.GROUP_SERVICE
+        }
         spinnerGroup.adapter = ArrayAdapter(
             this,
             android.R.layout.simple_spinner_dropdown_item,
@@ -108,6 +113,7 @@ class ContactEditorActivity : AppCompatActivity() {
         }
         findViewById<View>(R.id.layoutAvatarColorRow).visibility = View.GONE
 
+        setupPhoneInputMask()
         setupBirthdayInputMask()
         fillExistingData()
         updateAvatarPreview()
@@ -131,7 +137,8 @@ class ContactEditorActivity : AppCompatActivity() {
     private fun saveContact() {
         val name = inputName.text.toString().trim()
         val lastName = inputLastName.text.toString().trim().ifBlank { null }
-        val phone = inputPhone.text.toString().trim()
+        val rawPhone = inputPhone.text.toString().trim()
+        val phone = PhoneNumberFormatter.normalizeForStorage(rawPhone)
         val email = inputEmail.text.toString().trim().ifBlank { null }
         val address = inputAddress.text.toString().trim().ifBlank { null }
         val birthdayRaw = inputBirthday.text.toString().trim()
@@ -148,6 +155,9 @@ class ContactEditorActivity : AppCompatActivity() {
         if (phone.isBlank()) {
             inputPhone.error = getString(R.string.error_required)
             hasError = true
+        } else if (phone != rawPhone) {
+            inputPhone.setText(phone)
+            inputPhone.setSelection(phone.length)
         }
         if (!email.isNullOrBlank() && !email.contains("@")) {
             inputEmail.error = getString(R.string.error_email_format)
@@ -255,6 +265,29 @@ class ContactEditorActivity : AppCompatActivity() {
         ).show()
     }
 
+    private fun setupPhoneInputMask() {
+        inputPhone.addTextChangedListener(object : TextWatcher {
+            private var editing = false
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) = Unit
+            override fun afterTextChanged(s: Editable?) {
+                if (editing) return
+                val raw = s?.toString().orEmpty()
+                if (raw.isBlank()) return
+                if (PhoneNumberFormatter.isServiceNumber(raw)) return
+                if (PhoneNumberFormatter.isForeignInternational(raw)) return
+
+                val formatted = PhoneNumberFormatter.formatRuKzMask(raw)
+                if (formatted == raw) return
+
+                editing = true
+                s?.replace(0, s.length, formatted)
+                inputPhone.setSelection(formatted.length)
+                editing = false
+            }
+        })
+    }
+
     private fun setupBirthdayInputMask() {
         inputBirthday.addTextChangedListener(object : TextWatcher {
             private var editing = false
@@ -301,5 +334,7 @@ class ContactEditorActivity : AppCompatActivity() {
     companion object {
         const val EXTRA_CONTACT_ID = "extra_contact_id"
         private const val COMMENT_MAX_LENGTH = 512
+        private const val DEV_PREFS_NAME = "contact_manager_dev_settings"
+        private const val KEY_SERVICE_GROUP_VISIBLE = "service_group_visible"
     }
 }

@@ -19,6 +19,7 @@ class GroupManagementActivity : AppCompatActivity() {
     private lateinit var storage: ContactPrefsStorage
     private lateinit var listGroups: ListView
     private var groups: List<Pair<String, String>> = emptyList()
+    private val devPrefs by lazy { getSharedPreferences(DEV_PREFS_NAME, MODE_PRIVATE) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -37,7 +38,10 @@ class GroupManagementActivity : AppCompatActivity() {
     }
 
     private fun refreshGroups() {
-        groups = storage.getGroupsForManage()
+        val showService = devPrefs.getBoolean(KEY_SERVICE_GROUP_VISIBLE, false)
+        groups = storage.getGroupsForManage().filter { (code, _) ->
+            showService || code != ContactPrefsStorage.GROUP_SERVICE
+        }
         listGroups.adapter = ArrayAdapter(
             this,
             android.R.layout.simple_list_item_1,
@@ -122,4 +126,9 @@ class GroupManagementActivity : AppCompatActivity() {
     }
 
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
+
+    companion object {
+        private const val DEV_PREFS_NAME = "contact_manager_dev_settings"
+        private const val KEY_SERVICE_GROUP_VISIBLE = "service_group_visible"
+    }
 }
