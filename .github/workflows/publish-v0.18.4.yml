@@ -1,0 +1,66 @@
+name: Publish v0.18.4 Pre-release
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ "main" ]
+    paths:
+      - ".github/workflows/publish-v0.18.4.yml"
+      - "versions/Contact Manager v0.18.4/**"
+
+jobs:
+  ensure-v0-18-2-latest:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Force v0.18.2 as latest release
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.FLVMMING_CODER_TOKEN || github.token }}
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const tag = "v0.18.2";
+
+            let release;
+            try {
+              release = await github.rest.repos.getReleaseByTag({ owner, repo, tag });
+            } catch (error) {
+              core.warning(`Release ${tag} not found, skip.`);
+              return;
+            }
+
+            await github.rest.repos.updateRelease({
+              owner,
+              repo,
+              release_id: release.data.id,
+              tag_name: tag,
+              name: release.data.name || "Contact Manager v0.18.2 (25)",
+              draft: false,
+              prerelease: false,
+              make_latest: "true"
+            });
+            core.info("v0.18.2 set as latest release.");
+
+  publish-v0-18-4-prerelease:
+    needs: ensure-v0-18-2-latest
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Publish or update v0.18.4 pre-release
+        uses: softprops/action-gh-release@v2
+        with:
+          token: ${{ secrets.FLVMMING_CODER_TOKEN || github.token }}
+          tag_name: v0.18.4
+          name: Contact Manager v0.18.4 (27)
+          prerelease: true
+          draft: false
+          make_latest: false
+          body_path: versions/Contact Manager v0.18.4/README.md
+          files: versions/Contact Manager v0.18.4/ContactManager-v0.18.4-debug.apk
+          fail_on_unmatched_files: true

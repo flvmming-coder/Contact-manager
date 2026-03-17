@@ -26,12 +26,24 @@ object ThemeManager {
     }
 
     fun applySavedTheme(context: Context) {
-        AppCompatDelegate.setDefaultNightMode(getThemeMode(context).nightMode)
+        val resolvedMode = runCatching { getThemeMode(context) }
+            .getOrDefault(ThemeMode.LIGHT)
+        AppCompatDelegate.setDefaultNightMode(resolvedMode.nightMode)
     }
 
     fun getThemeMode(context: Context): ThemeMode {
-        val raw = prefs(context).getString(KEY_THEME_MODE, ThemeMode.LIGHT.storageValue).orEmpty()
-        return ThemeMode.entries.firstOrNull { it.storageValue == raw } ?: ThemeMode.LIGHT
+        val prefs = prefs(context)
+        val value = prefs.all[KEY_THEME_MODE]
+        val resolved = when (value) {
+            is String -> ThemeMode.entries.firstOrNull { it.storageValue == value } ?: ThemeMode.LIGHT
+            is Int -> fromLegacyNightMode(value)
+            else -> ThemeMode.LIGHT
+        }
+        if (value !is String || value != resolved.storageValue) {
+            // Migrate legacy/non-string value to the new stable format.
+            prefs.edit().putString(KEY_THEME_MODE, resolved.storageValue).apply()
+        }
+        return resolved
     }
 
     fun setThemeMode(context: Context, mode: ThemeMode) {
@@ -50,8 +62,12 @@ object ThemeManager {
     }
 
     fun getAccentPreset(context: Context): AccentPreset {
-        val raw = prefs(context).getString(KEY_ACCENT_PRESET, AccentPreset.YELLOW.storageValue).orEmpty()
-        return AccentPreset.entries.firstOrNull { it.storageValue == raw } ?: AccentPreset.YELLOW
+        val value = prefs(context).all[KEY_ACCENT_PRESET]
+        return if (value is String) {
+            AccentPreset.entries.firstOrNull { it.storageValue == value } ?: AccentPreset.YELLOW
+        } else {
+            AccentPreset.YELLOW
+        }
     }
 
     fun setAccentPreset(context: Context, preset: AccentPreset) {
@@ -101,6 +117,16 @@ object ThemeManager {
 
     private fun colorToHex(color: Int): String {
         return String.format("#%06X", 0xFFFFFF and color)
+    }
+
+    private fun fromLegacyNightMode(value: Int): ThemeMode {
+        return when (value) {
+            AppCompatDelegate.MODE_NIGHT_YES -> ThemeMode.DARK
+            AppCompatDelegate.MODE_NIGHT_NO -> ThemeMode.LIGHT
+            AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM -> ThemeMode.SYSTEM
+            AppCompatDelegate.MODE_NIGHT_AUTO_BATTERY -> ThemeMode.SYSTEM
+            else -> ThemeMode.LIGHT
+        }
     }
 
     private const val PREFS_NAME = "contact_manager_theme"

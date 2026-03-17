@@ -10,8 +10,11 @@ import com.example.contactmanagerdemo.core.UpdateWorkScheduler
 class ContactManagerApplication : Application() {
     override fun onCreate() {
         super.onCreate()
-        ThemeManager.applySavedTheme(this)
         AppEventLogger.init(this)
+        runCatching { ThemeManager.applySavedTheme(this) }
+            .onFailure { error ->
+                AppEventLogger.error("THEME", "Failed to apply saved theme, fallback to default", error)
+            }
         UpdateNotificationHelper.createChannel(this)
         UpdateWorkScheduler.schedule(this)
         val version = runCatching {
