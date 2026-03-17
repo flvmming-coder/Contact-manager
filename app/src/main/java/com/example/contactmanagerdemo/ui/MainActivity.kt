@@ -36,6 +36,7 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.SeekBar
 import android.widget.Spinner
+import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
@@ -190,6 +191,7 @@ class MainActivity : AppCompatActivity() {
             findViewById<Button>(R.id.btnSelectionGroup).setOnClickListener { showBulkAssignGroupDialog() }
             findViewById<Button>(R.id.btnSelectionDelete).setOnClickListener { showBulkDeleteDialog() }
             findViewById<Button>(R.id.btnSelectionCancel).setOnClickListener { clearSelectionMode() }
+            findViewById<ImageButton>(R.id.btnGroupSettings).setOnClickListener { showGroupManagementDialog() }
 
             setupFilterGroups()
 
@@ -225,9 +227,14 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun setupFilterGroups() {
+        val previousGroupCode = selectedGroupCode
         filterGroupCodes = storage.getFilterGroups()
-        editGroupCodes = storage.getAvailableGroups()
-        selectedGroupCode = ContactPrefsStorage.GROUP_ALL
+        editGroupCodes = storage.getEditableGroups()
+        selectedGroupCode = if (filterGroupCodes.contains(previousGroupCode)) {
+            previousGroupCode
+        } else {
+            ContactPrefsStorage.GROUP_ALL
+        }
 
         groupContainer.removeAllViews()
         groupViews.clear()
@@ -372,7 +379,7 @@ class MainActivity : AppCompatActivity() {
         val dialog = AlertDialog.Builder(this)
             .setTitle(R.string.bulk_assign_group_title)
             .setItems(groupLabels.toTypedArray()) { _, which ->
-                val targetGroup = editGroupCodes.getOrElse(which) { ContactPrefsStorage.GROUP_OTHER }
+                val targetGroup = editGroupCodes.getOrElse(which) { ContactPrefsStorage.GROUP_UNASSIGNED }
                 val updated = allContacts.map { contact ->
                     if (selectedContactIds.contains(contact.id)) contact.copy(group = targetGroup) else contact
                 }
@@ -513,7 +520,9 @@ class MainActivity : AppCompatActivity() {
             inputAddress.setText(contact.address.orEmpty())
             inputBirthday.setText(contact.birthday.orEmpty())
             inputComment.setText(contact.comment.orEmpty())
-            val index = editGroupCodes.indexOf(contact.group).takeIf { it >= 0 } ?: 0
+            val index = editGroupCodes.indexOf(contact.group).takeIf { it >= 0 }
+                ?: editGroupCodes.indexOf(ContactPrefsStorage.GROUP_UNASSIGNED).takeIf { it >= 0 }
+                ?: 0
             spinnerGroup.setSelection(index)
         }
         updateAvatarDialogPreview(
@@ -551,7 +560,7 @@ class MainActivity : AppCompatActivity() {
                 val birthdayRaw = inputBirthday.text.toString().trim()
                 val comment = inputComment.text.toString().trim().ifBlank { null }
                 val groupIndex = spinnerGroup.selectedItemPosition.takeIf { it >= 0 } ?: 0
-                val group = editGroupCodes.getOrElse(groupIndex) { ContactPrefsStorage.GROUP_OTHER }
+                val group = editGroupCodes.getOrElse(groupIndex) { ContactPrefsStorage.GROUP_UNASSIGNED }
 
                 var hasError = false
                 if (name.isBlank()) {
@@ -905,13 +914,122 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun mapGroupLabel(code: String): String {
-        return when (code) {
-            ContactPrefsStorage.GROUP_ALL -> getString(R.string.group_all)
-            ContactPrefsStorage.GROUP_FAMILY -> getString(R.string.group_family)
-            ContactPrefsStorage.GROUP_FRIENDS -> getString(R.string.group_friends)
-            ContactPrefsStorage.GROUP_WORK -> getString(R.string.group_work)
-            else -> getString(R.string.group_other)
+        return storage.getGroupTitle(code)
+    }
+
+    private fun showGroupManagementDialog() {
+        val groups = storage.getGroupsForManage()
+        val items = mutableListOf<String>()
+        items.add(getString(R.string.group_manage_create))
+        items.addAll(groups.map { (_, title) -> title })
+
+        val dialog = AlertDialog.Builder(this)
+            .setTitle(R.string.group_manage_title)
+            .setItems(items.toTypedArray()) { _, which ->
+                if (which == 0) {
+                    showCreateGroupDialog()
+                } else {
+                    val selected = groups.getOrNull(which - 1) ?: return@setItems
+                    showGroupActionsDialog(selected.first, selected.second)
+                }
+            }
+            .setNegativeButton(R.string.action_cancel, null)
+            .create()
+        dialog.show()
+        styleDialogButtons(dialog)
+    }
+
+    private fun showCreateGroupDialog() {
+        val input = EditText(this).apply {
+            hint = getString(R.string.group_name_hint)
+            setTextColor(ContextCompat.getColor(this@MainActivity, R.color.text_primary))
+            setHintTextColor(ContextCompat.getColor(this@MainActivity, R.color.text_secondary))
+            background = ContextCompat.getDrawable(this@MainActivity, R.drawable.bg_dialog_input)
+            setPadding(dp(12), dp(10), dp(12), dp(10))
         }
+
+        val dialog = AlertDialog.Builder(this)
+            .setTitle(R.string.group_manage_create_title)
+            .setView(input)
+            .setPositiveButton(R.string.action_save) { _, _ ->
+                val created = storage.createGroup(input.text.toString())
+                if (created == null) {
+                    Toast.makeText(this, R.string.group_manage_name_invalid, Toast.LENGTH_SHORT).show()
+                    return@setPositiveButton
+                }
+                AppEventLogger.info("GROUP", "Created group code=$created")
+                setupFilterGroups()
+                loadContactsAndRender()
+            }
+            .setNegativeButton(R.string.action_cancel, null)
+            .create()
+        dialog.show()
+        styleDialogButtons(dialog)
+    }
+
+    private fun showGroupActionsDialog(groupCode: String, groupTitle: String) {
+        val options = arrayOf(
+            getString(R.string.group_manage_rename),
+            getString(R.string.group_manage_delete),
+        )
+        val dialog = AlertDialog.Builder(this)
+            .setTitle(groupTitle)
+            .setItems(options) { _, which ->
+                when (which) {
+                    0 -> showRenameGroupDialog(groupCode, groupTitle)
+                    1 -> confirmDeleteGroup(groupCode, groupTitle)
+                }
+            }
+            .setNegativeButton(R.string.action_cancel, null)
+            .create()
+        dialog.show()
+        styleDialogButtons(dialog)
+    }
+
+    private fun showRenameGroupDialog(groupCode: String, currentTitle: String) {
+        val input = EditText(this).apply {
+            hint = getString(R.string.group_name_hint)
+            setText(currentTitle)
+            setSelection(text.length)
+            setTextColor(ContextCompat.getColor(this@MainActivity, R.color.text_primary))
+            setHintTextColor(ContextCompat.getColor(this@MainActivity, R.color.text_secondary))
+            background = ContextCompat.getDrawable(this@MainActivity, R.drawable.bg_dialog_input)
+            setPadding(dp(12), dp(10), dp(12), dp(10))
+        }
+        val dialog = AlertDialog.Builder(this)
+            .setTitle(R.string.group_manage_rename_title)
+            .setView(input)
+            .setPositiveButton(R.string.action_save) { _, _ ->
+                val renamed = storage.renameGroup(groupCode, input.text.toString())
+                if (!renamed) {
+                    Toast.makeText(this, R.string.group_manage_name_invalid, Toast.LENGTH_SHORT).show()
+                    return@setPositiveButton
+                }
+                AppEventLogger.info("GROUP", "Renamed group code=$groupCode")
+                setupFilterGroups()
+                loadContactsAndRender()
+            }
+            .setNegativeButton(R.string.action_cancel, null)
+            .create()
+        dialog.show()
+        styleDialogButtons(dialog)
+    }
+
+    private fun confirmDeleteGroup(groupCode: String, groupTitle: String) {
+        val dialog = AlertDialog.Builder(this)
+            .setTitle(R.string.group_manage_delete_title)
+            .setMessage(getString(R.string.group_manage_delete_message, groupTitle))
+            .setPositiveButton(R.string.action_delete) { _, _ ->
+                val reassigned = storage.deleteGroup(groupCode)
+                AppEventLogger.info("GROUP", "Deleted group code=$groupCode, reassigned=$reassigned")
+                Toast.makeText(this, getString(R.string.group_manage_delete_done, reassigned), Toast.LENGTH_SHORT).show()
+                setupFilterGroups()
+                loadContactsAndRender()
+            }
+            .setNegativeButton(R.string.action_cancel, null)
+            .create()
+        dialog.show()
+        styleDialogButtons(dialog)
     }
 
     private fun showSettingsMenu() {
@@ -1136,6 +1254,7 @@ class MainActivity : AppCompatActivity() {
     private fun performDeviceContactsImport(): Int {
         val existing = storage.getAllContacts().toMutableList()
         val dedupKeys = existing.mapTo(mutableSetOf()) { contactKey(it.name, it.lastName, it.phone) }
+        val deviceGroupTitles = loadDeviceGroupTitleMap()
 
         var imported = 0
         var nextIdSeed = System.currentTimeMillis()
@@ -1157,7 +1276,12 @@ class MainActivity : AppCompatActivity() {
                 val displayName = cursor.getStringOrNull(ContactsContract.Contacts.DISPLAY_NAME_PRIMARY).orEmpty()
                 val photoUri = cursor.getStringOrNull(ContactsContract.Contacts.PHOTO_URI)
 
-                val details = loadDeviceContactDetails(contactId, displayName, photoUri) ?: continue
+                val details = loadDeviceContactDetails(
+                    contactId = contactId,
+                    displayName = displayName,
+                    photoUriFromContacts = photoUri,
+                    deviceGroupTitles = deviceGroupTitles,
+                ) ?: continue
                 val key = contactKey(details.name, details.lastName, details.phone)
                 if (!dedupKeys.add(key)) continue
 
@@ -1174,7 +1298,7 @@ class MainActivity : AppCompatActivity() {
                         comment = details.comment,
                         avatarColor = null,
                         avatarPhotoUri = details.avatarPhotoUri,
-                        group = ContactPrefsStorage.GROUP_OTHER,
+                        group = details.groupCode,
                         isImported = true,
                     ),
                 )
@@ -1192,6 +1316,7 @@ class MainActivity : AppCompatActivity() {
         contactId: Long,
         displayName: String,
         photoUriFromContacts: String?,
+        deviceGroupTitles: Map<Long, String>,
     ): ImportedContactDetails? {
         val phone = queryPhone(contactId).orEmpty()
         if (phone.isBlank()) return null
@@ -1208,7 +1333,68 @@ class MainActivity : AppCompatActivity() {
             birthday = normalizeImportedBirthday(queryBirthday(contactId)),
             comment = queryNote(contactId),
             avatarPhotoUri = photoUriFromContacts?.trim()?.ifBlank { null } ?: queryPhotoUri(contactId),
+            groupCode = resolveImportedGroupCode(contactId, deviceGroupTitles),
         )
+    }
+
+    private fun loadDeviceGroupTitleMap(): Map<Long, String> {
+        val result = linkedMapOf<Long, String>()
+        val cursor = contentResolver.query(
+            ContactsContract.Groups.CONTENT_URI,
+            arrayOf(ContactsContract.Groups._ID, ContactsContract.Groups.TITLE),
+            null,
+            null,
+            null,
+        ) ?: return emptyMap()
+
+        cursor.use {
+            while (it.moveToNext()) {
+                val id = it.getLongOrNull(ContactsContract.Groups._ID) ?: continue
+                val title = it.getStringOrNull(ContactsContract.Groups.TITLE).orEmpty().trim()
+                if (title.isBlank()) continue
+                result[id] = title
+            }
+        }
+        return result
+    }
+
+    private fun resolveImportedGroupCode(contactId: Long, deviceGroupTitles: Map<Long, String>): String {
+        val titles = queryContactGroupTitles(contactId, deviceGroupTitles)
+        if (titles.isEmpty()) return ContactPrefsStorage.GROUP_OTHER
+        val targetTitle = titles.firstOrNull { !isSystemContactGroupTitle(it) } ?: titles.first()
+        return storage.ensureGroupByTitle(targetTitle)
+    }
+
+    private fun queryContactGroupTitles(contactId: Long, deviceGroupTitles: Map<Long, String>): List<String> {
+        val cursor = contentResolver.query(
+            ContactsContract.Data.CONTENT_URI,
+            arrayOf(ContactsContract.CommonDataKinds.GroupMembership.GROUP_ROW_ID),
+            "${ContactsContract.Data.CONTACT_ID}=? AND ${ContactsContract.Data.MIMETYPE}=?",
+            arrayOf(
+                contactId.toString(),
+                ContactsContract.CommonDataKinds.GroupMembership.CONTENT_ITEM_TYPE,
+            ),
+            null,
+        ) ?: return emptyList()
+
+        val titles = linkedSetOf<String>()
+        cursor.use {
+            while (it.moveToNext()) {
+                val rowId = it.getLongOrNull(ContactsContract.CommonDataKinds.GroupMembership.GROUP_ROW_ID) ?: continue
+                val title = deviceGroupTitles[rowId].orEmpty().trim()
+                if (title.isNotBlank()) titles.add(title)
+            }
+        }
+        return titles.toList()
+    }
+
+    private fun isSystemContactGroupTitle(title: String): Boolean {
+        val normalized = title.trim().lowercase(Locale.getDefault())
+        return normalized == "my contacts" ||
+            normalized == "starred in android" ||
+            normalized == "избранные" ||
+            normalized == "контакты" ||
+            normalized == "contacts"
     }
 
     private fun queryNameParts(contactId: Long, fallbackDisplayName: String): Pair<String, String?> {
@@ -1406,6 +1592,7 @@ class MainActivity : AppCompatActivity() {
         val textVersionValue = dialogView.findViewById<TextView>(R.id.textVersionValue)
         val textLogPathValue = dialogView.findViewById<TextView>(R.id.textLogPathValue)
         val btnCheckUpdates = dialogView.findViewById<Button>(R.id.btnCheckUpdates)
+        val btnOpenLogs = dialogView.findViewById<Button>(R.id.btnOpenLogs)
         val btnDevelopersInfo = dialogView.findViewById<Button>(R.id.btnDevelopersInfo)
         val textUpdateResult = dialogView.findViewById<TextView>(R.id.textUpdateResult)
 
@@ -1444,6 +1631,7 @@ class MainActivity : AppCompatActivity() {
             AppEventLogger.info("ADMIN", "Checking updates from GitHub")
             checkForUpdatesFromGithub(textUpdateResult)
         }
+        btnOpenLogs.setOnClickListener { showLogFilesDialog() }
         btnDevelopersInfo.setOnClickListener { showDevelopersDialog() }
 
         val dialog = AlertDialog.Builder(this)
@@ -1504,6 +1692,57 @@ class MainActivity : AppCompatActivity() {
         val dialog = AlertDialog.Builder(this)
             .setTitle(R.string.developers_dialog_title)
             .setView(textView)
+            .setPositiveButton(R.string.action_cancel, null)
+            .create()
+        dialog.show()
+        styleDialogButtons(dialog)
+    }
+
+    private fun showLogFilesDialog() {
+        val files = AppEventLogger.listLogFiles(this)
+        if (files.isEmpty()) {
+            Toast.makeText(this, R.string.admin_logs_empty, Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val names = files.map { it.name }.toTypedArray()
+        val dialog = AlertDialog.Builder(this)
+            .setTitle(R.string.admin_open_logs)
+            .setItems(names) { _, which ->
+                val fileName = names.getOrNull(which) ?: return@setItems
+                showLogContentDialog(fileName)
+            }
+            .setNegativeButton(R.string.action_cancel, null)
+            .create()
+        dialog.show()
+        styleDialogButtons(dialog)
+    }
+
+    private fun showLogContentDialog(fileName: String) {
+        val content = AppEventLogger.readLogFile(this, fileName)
+        if (content == null) {
+            Toast.makeText(this, R.string.admin_log_open_error, Toast.LENGTH_SHORT).show()
+            return
+        }
+        val textView = TextView(this).apply {
+            text = content
+            textSize = 12f
+            setTextColor(ContextCompat.getColor(this@MainActivity, R.color.text_primary))
+            setLineSpacing(0f, 1.15f)
+            setPadding(dp(12), dp(12), dp(12), dp(12))
+        }
+        val container = ScrollView(this).apply {
+            addView(
+                textView,
+                ViewGroup.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                ),
+            )
+        }
+        val dialog = AlertDialog.Builder(this)
+            .setTitle(fileName)
+            .setView(container)
             .setPositiveButton(R.string.action_cancel, null)
             .create()
         dialog.show()
@@ -1716,6 +1955,7 @@ class MainActivity : AppCompatActivity() {
         val birthday: String?,
         val comment: String?,
         val avatarPhotoUri: String?,
+        val groupCode: String,
     )
 
     companion object {

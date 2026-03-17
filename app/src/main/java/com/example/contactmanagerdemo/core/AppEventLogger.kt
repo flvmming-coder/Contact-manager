@@ -68,6 +68,25 @@ object AppEventLogger {
         return resolvedLogDirectory
     }
 
+    fun listLogFiles(context: Context): List<File> {
+        val ctx = appContext ?: context.applicationContext
+        val dir = runCatching { resolveLogDirectory(ctx) }.getOrNull() ?: return emptyList()
+        val files = dir.listFiles().orEmpty().filter { it.isFile && it.extension.equals("txt", ignoreCase = true) }
+        return files.sortedByDescending { it.lastModified() }
+    }
+
+    fun readLogFile(context: Context, fileName: String, maxChars: Int = 60_000): String? {
+        val file = listLogFiles(context).firstOrNull { it.name == fileName } ?: return null
+        return runCatching {
+            val text = file.readText()
+            if (text.length > maxChars) {
+                text.takeLast(maxChars)
+            } else {
+                text
+            }
+        }.getOrNull()
+    }
+
     fun info(event: String, message: String) {
         write("INFO", event, message, null, force = false)
     }

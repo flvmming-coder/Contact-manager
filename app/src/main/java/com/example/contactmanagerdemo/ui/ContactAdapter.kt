@@ -46,21 +46,23 @@ class ContactAdapter(
     }
 
     override fun onBindViewHolder(holder: ContactViewHolder, position: Int) {
-        holder.bind(contacts[position])
+        holder.bind(contacts[position], position)
     }
 
     override fun getItemCount(): Int = contacts.size
 
     inner class ContactViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
         private val root: View = itemView.findViewById(R.id.contactCardRoot)
+        private val textSectionLetter: TextView = itemView.findViewById(R.id.textSectionLetter)
         private val imageAvatar: ImageView = itemView.findViewById(R.id.imageAvatar)
         private val textAvatar: TextView = itemView.findViewById(R.id.textAvatar)
         private val textName: TextView = itemView.findViewById(R.id.textName)
         private val textPhone: TextView = itemView.findViewById(R.id.textPhone)
 
-        fun bind(contact: Contact) {
+        fun bind(contact: Contact, position: Int) {
             textName.text = listOfNotNull(contact.name, contact.lastName).joinToString(" ")
             textPhone.text = contact.phone
+            bindSectionHeader(contact, position)
 
             bindAvatar(contact)
             applySelectionStyle(selectedIds.contains(contact.id))
@@ -170,6 +172,20 @@ class ContactAdapter(
                 cornerRadius = 14f * itemView.resources.displayMetrics.density
                 setColor(avatarColorFor(contact))
             }
+        }
+
+        private fun bindSectionHeader(contact: Contact, position: Int) {
+            val current = sectionLetter(contact)
+            val previous = contacts.getOrNull(position - 1)?.let(::sectionLetter)
+            val show = position == 0 || current != previous
+            textSectionLetter.visibility = if (show) View.VISIBLE else View.GONE
+            textSectionLetter.text = current
+        }
+
+        private fun sectionLetter(contact: Contact): String {
+            val full = listOfNotNull(contact.name, contact.lastName).joinToString(" ").trim()
+            val ch = full.firstOrNull { !it.isWhitespace() } ?: '#'
+            return if (ch.isLetter()) ch.uppercaseChar().toString() else "#"
         }
 
         private fun buildInitials(contact: Contact): String {

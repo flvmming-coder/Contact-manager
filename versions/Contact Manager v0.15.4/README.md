@@ -1,4 +1,4 @@
-﻿# Contact Manager v0.15.4 (PRE-RELEASE)
+﻿# Contact Manager v0.15.4 (RELEASE)
 
 Причина обновления:
 - ускорить вход в режим выбора контактов;
@@ -24,3 +24,4 @@
 
 APK:
 - ContactManager-v0.15.4-debug.apk
+

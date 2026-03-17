@@ -1,10 +1,11 @@
-﻿package com.example.contactmanagerdemo.data
+package com.example.contactmanagerdemo.data
 
 import android.content.Context
 import com.example.contactmanagerdemo.R
 import com.example.contactmanagerdemo.core.AppEventLogger
 import org.json.JSONArray
 import org.json.JSONObject
+import java.util.Locale
 
 class ContactPrefsStorage(context: Context) {
 
@@ -12,14 +13,92 @@ class ContactPrefsStorage(context: Context) {
     private val prefs = appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
     fun getAvailableGroups(): List<String> {
-        return listOf(GROUP_FAMILY, GROUP_FRIENDS, GROUP_WORK, GROUP_OTHER)
+        return getStoredGroups().map { it.code }
+    }
+
+    fun getEditableGroups(): List<String> {
+        return listOf(GROUP_UNASSIGNED) + getAvailableGroups()
     }
 
     fun getFilterGroups(): List<String> {
-        return listOf(GROUP_ALL, GROUP_FAMILY, GROUP_FRIENDS, GROUP_WORK, GROUP_OTHER)
+        return listOf(GROUP_ALL) + getAvailableGroups()
+    }
+
+    fun getGroupTitle(code: String): String {
+        return when (code) {
+            GROUP_ALL -> appContext.getString(R.string.group_all)
+            GROUP_UNASSIGNED -> appContext.getString(R.string.group_unassigned)
+            else -> getStoredGroups().firstOrNull { it.code == code }?.title
+                ?: appContext.getString(R.string.group_unassigned)
+        }
+    }
+
+    fun getGroupsForManage(): List<Pair<String, String>> {
+        return getStoredGroups().map { it.code to it.title }
+    }
+
+    fun ensureGroupByTitle(rawTitle: String): String {
+        val title = rawTitle.trim()
+        if (title.isBlank()) return GROUP_UNASSIGNED
+
+        val groups = getStoredGroups().toMutableList()
+        val existing = groups.firstOrNull { normalizeTitle(it.title) == normalizeTitle(title) }
+        if (existing != null) return existing.code
+
+        val code = generateUniqueCode(title, groups.mapTo(mutableSetOf()) { it.code })
+        groups.add(GroupDef(code = code, title = title))
+        saveStoredGroups(groups)
+        return code
+    }
+
+    fun createGroup(rawTitle: String): String? {
+        val title = rawTitle.trim()
+        if (title.isBlank()) return null
+        return ensureGroupByTitle(title)
+    }
+
+    fun renameGroup(code: String, rawTitle: String): Boolean {
+        val title = rawTitle.trim()
+        if (title.isBlank()) return false
+        if (code == GROUP_ALL || code == GROUP_UNASSIGNED) return false
+
+        val groups = getStoredGroups().toMutableList()
+        val index = groups.indexOfFirst { it.code == code }
+        if (index < 0) return false
+
+        val duplicate = groups.any { it.code != code && normalizeTitle(it.title) == normalizeTitle(title) }
+        if (duplicate) return false
+
+        groups[index] = groups[index].copy(title = title)
+        saveStoredGroups(groups)
+        return true
+    }
+
+    fun deleteGroup(code: String): Int {
+        if (code == GROUP_ALL || code == GROUP_UNASSIGNED) return 0
+
+        val groups = getStoredGroups().toMutableList()
+        val removed = groups.removeAll { it.code == code }
+        if (!removed) return 0
+
+        saveStoredGroups(groups)
+
+        val contacts = getAllContacts()
+        var reassigned = 0
+        val updated = contacts.map { contact ->
+            if (contact.group == code) {
+                reassigned += 1
+                contact.copy(group = GROUP_UNASSIGNED)
+            } else {
+                contact
+            }
+        }
+        saveAllContacts(updated)
+        return reassigned
     }
 
     fun getAllContacts(): MutableList<Contact> {
+        ensureGroupsInitialized()
         val raw = prefs.getString(KEY_CONTACTS, null)
         if (raw == null) {
             val seed = seedContacts()
@@ -41,6 +120,8 @@ class ContactPrefsStorage(context: Context) {
     }
 
     fun saveAllContacts(contacts: List<Contact>) {
+        ensureGroupsInitialized()
+        val validCodes = getAvailableGroups().toSet()
         val array = JSONArray()
         contacts.forEach { contact ->
             array.put(
@@ -55,7 +136,7 @@ class ContactPrefsStorage(context: Context) {
                     put("comment", contact.comment)
                     put("avatarColor", contact.avatarColor)
                     put("avatarPhotoUri", contact.avatarPhotoUri)
-                    put("group", contact.group)
+                    put("group", sanitizeGroup(contact.group, validCodes))
                     put("isImported", contact.isImported)
                 },
             )
@@ -85,6 +166,7 @@ class ContactPrefsStorage(context: Context) {
 
     private fun parseContactsSafely(raw: String): MutableList<Contact> {
         return try {
+            val validCodes = getAvailableGroups().toSet()
             val array = JSONArray(raw)
             val result = mutableListOf<Contact>()
             for (i in 0 until array.length()) {
@@ -109,7 +191,7 @@ class ContactPrefsStorage(context: Context) {
                     continue
                 }
 
-                val rawGroup = repairMojibake(obj.optString("group", GROUP_OTHER))
+                val rawGroup = repairMojibake(obj.optString("group", GROUP_UNASSIGNED))
                 result.add(
                     Contact(
                         id = id,
@@ -122,7 +204,7 @@ class ContactPrefsStorage(context: Context) {
                         comment = repairMojibake(obj.optString("comment")).trim().ifBlank { null },
                         avatarColor = repairMojibake(obj.optString("avatarColor")).trim().ifBlank { null },
                         avatarPhotoUri = repairMojibake(obj.optString("avatarPhotoUri")).trim().ifBlank { null },
-                        group = normalizeGroup(rawGroup),
+                        group = sanitizeGroup(normalizeLegacyGroup(rawGroup), validCodes),
                         isImported = obj.optBoolean("isImported", obj.optBoolean("imported", false)),
                     ),
                 )
@@ -160,30 +242,114 @@ class ContactPrefsStorage(context: Context) {
         )
     }
 
-    private fun normalizeGroup(group: String): String {
-        return when (group.trim().lowercase()) {
+    private fun ensureGroupsInitialized() {
+        if (prefs.contains(KEY_GROUPS)) return
+        saveStoredGroups(defaultGroups())
+    }
+
+    private fun getStoredGroups(): List<GroupDef> {
+        ensureGroupsInitialized()
+        val raw = prefs.getString(KEY_GROUPS, null).orEmpty()
+        if (raw.isBlank()) {
+            val defaults = defaultGroups()
+            saveStoredGroups(defaults)
+            return defaults
+        }
+        return runCatching {
+            val parsed = mutableListOf<GroupDef>()
+            val array = JSONArray(raw)
+            for (i in 0 until array.length()) {
+                val obj = array.optJSONObject(i) ?: continue
+                val code = obj.optString("code").trim()
+                val title = obj.optString("title").trim()
+                if (code.isBlank() || title.isBlank()) continue
+                parsed.add(GroupDef(code = code, title = title))
+            }
+            if (parsed.isEmpty()) defaultGroups() else parsed
+        }.getOrElse {
+            defaultGroups()
+        }.also { groups ->
+            if (groups.isNotEmpty()) saveStoredGroups(groups)
+        }
+    }
+
+    private fun saveStoredGroups(groups: List<GroupDef>) {
+        val unique = linkedMapOf<String, GroupDef>()
+        groups.forEach { group ->
+            if (group.code.isNotBlank() && group.title.isNotBlank()) {
+                unique[group.code] = group
+            }
+        }
+        val array = JSONArray()
+        unique.values.forEach { group ->
+            array.put(
+                JSONObject().apply {
+                    put("code", group.code)
+                    put("title", group.title)
+                },
+            )
+        }
+        prefs.edit().putString(KEY_GROUPS, array.toString()).apply()
+    }
+
+    private fun defaultGroups(): MutableList<GroupDef> {
+        return mutableListOf(
+            GroupDef(GROUP_FAMILY, appContext.getString(R.string.group_family)),
+            GroupDef(GROUP_FRIENDS, appContext.getString(R.string.group_friends)),
+            GroupDef(GROUP_WORK, appContext.getString(R.string.group_work)),
+            GroupDef(GROUP_OTHER, appContext.getString(R.string.group_other)),
+        )
+    }
+
+    private fun normalizeLegacyGroup(group: String): String {
+        return when (group.trim().lowercase(Locale.getDefault())) {
             GROUP_ALL,
-            "\u0432\u0441\u0435",
-            fixMojibakeToken("\u0432\u0441\u0435") -> GROUP_ALL
+            "все",
+            fixMojibakeToken("все") -> GROUP_UNASSIGNED
 
             GROUP_FAMILY,
-            "\u0441\u0435\u043c\u044c\u044f",
-            fixMojibakeToken("\u0441\u0435\u043c\u044c\u044f") -> GROUP_FAMILY
+            "семья",
+            fixMojibakeToken("семья") -> GROUP_FAMILY
 
             GROUP_FRIENDS,
-            "\u0434\u0440\u0443\u0437\u044c\u044f",
-            fixMojibakeToken("\u0434\u0440\u0443\u0437\u044c\u044f") -> GROUP_FRIENDS
+            "друзья",
+            fixMojibakeToken("друзья") -> GROUP_FRIENDS
 
             GROUP_WORK,
-            "\u0440\u0430\u0431\u043e\u0442\u0430",
-            fixMojibakeToken("\u0440\u0430\u0431\u043e\u0442\u0430") -> GROUP_WORK
+            "работа",
+            fixMojibakeToken("работа") -> GROUP_WORK
 
             GROUP_OTHER,
-            "\u0434\u0440\u0443\u0433\u043e\u0435",
-            fixMojibakeToken("\u0434\u0440\u0443\u0433\u043e\u0435") -> GROUP_OTHER
+            "другое",
+            fixMojibakeToken("другое") -> GROUP_OTHER
 
-            else -> GROUP_OTHER
+            else -> group.trim()
         }
+    }
+
+    private fun sanitizeGroup(group: String, validCodes: Set<String>): String {
+        val normalized = group.trim()
+        if (normalized.isBlank() || normalized == GROUP_ALL) return GROUP_UNASSIGNED
+        if (normalized == GROUP_UNASSIGNED) return GROUP_UNASSIGNED
+        return if (validCodes.contains(normalized)) normalized else GROUP_UNASSIGNED
+    }
+
+    private fun generateUniqueCode(title: String, usedCodes: MutableSet<String>): String {
+        val normalized = title.lowercase(Locale.getDefault())
+            .replace("[^a-zа-я0-9]+".toRegex(), "_")
+            .trim('_')
+        var base = if (normalized.isBlank()) "group" else "group_$normalized"
+        base = base.take(36)
+        if (!usedCodes.contains(base)) return base
+        var index = 2
+        while (usedCodes.contains("${base}_$index")) {
+            index += 1
+        }
+        return "${base}_$index"
+    }
+
+    private fun normalizeTitle(value: String): String {
+        return value.trim().lowercase(Locale.getDefault())
     }
 
     private fun repairMojibake(value: String): String {
@@ -206,11 +372,18 @@ class ContactPrefsStorage(context: Context) {
         }
     }
 
+    private data class GroupDef(
+        val code: String,
+        val title: String,
+    )
+
     companion object {
         private const val PREFS_NAME = "contact_manager_prefs"
         private const val KEY_CONTACTS = "contacts"
+        private const val KEY_GROUPS = "groups"
 
         const val GROUP_ALL = "all"
+        const val GROUP_UNASSIGNED = "ungrouped"
         const val GROUP_FAMILY = "family"
         const val GROUP_FRIENDS = "friends"
         const val GROUP_WORK = "work"
