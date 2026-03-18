@@ -1,0 +1,31 @@
+name: Publish v1.0.0 Release
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ "main" ]
+    paths:
+      - ".github/workflows/publish-v1.0.0.yml"
+      - "versions/Contact Manager v1.0.0/**"
+
+jobs:
+  publish-v1-0-0-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Publish or update v1.0.0 release
+        uses: softprops/action-gh-release@v2
+        with:
+          token: ${{ secrets.FLVMMING_CODER_TOKEN || github.token }}
+          tag_name: v1.0.0
+          name: Contact Manager v1.0.0 (35)
+          prerelease: false
+          draft: false
+          make_latest: true
+          body_path: versions/Contact Manager v1.0.0/README.md
+          files: versions/Contact Manager v1.0.0/ContactManager-v1.0.0-debug.apk
+          fail_on_unmatched_files: true
