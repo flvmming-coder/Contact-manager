@@ -33,6 +33,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.inputmethod.InputMethodManager
 import android.widget.ArrayAdapter
+import android.widget.AdapterView
 import android.widget.Button
 import android.widget.EditText
 import android.widget.ImageButton
@@ -63,9 +64,11 @@ import com.example.contactmanagerdemo.core.ContactQrCodec
 import com.example.contactmanagerdemo.core.DevSecurityManager
 import com.example.contactmanagerdemo.core.PhoneNumberFormatter
 import com.example.contactmanagerdemo.core.QrAvatarCodec
+import com.example.contactmanagerdemo.core.SimpleXlsxWriter
 import com.example.contactmanagerdemo.core.ThemeManager
 import com.example.contactmanagerdemo.core.UpdateChecker
 import com.example.contactmanagerdemo.data.Contact
+import com.example.contactmanagerdemo.data.ContactDatabaseMirror
 import com.example.contactmanagerdemo.data.ContactPrefsStorage
 import java.io.File
 import java.io.FileOutputStream
@@ -86,6 +89,7 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var textStats: TextView
     private lateinit var inputSearch: EditText
+    private lateinit var spinnerSort: Spinner
     private lateinit var groupContainer: LinearLayout
     private lateinit var textEmpty: TextView
     private lateinit var selectionActionsBar: LinearLayout
@@ -98,6 +102,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var filterGroupCodes: List<String>
     private lateinit var editGroupCodes: List<String>
     private var selectedGroupCode: String = ContactPrefsStorage.GROUP_ALL
+    private var selectedSortOption: SortOption = SortOption.NAME_ASC
     private val groupViews: MutableMap<String, TextView> = linkedMapOf()
     private val mainHandler = Handler(Looper.getMainLooper())
     private var pendingApkDownloadId: Long = -1L
@@ -253,6 +258,7 @@ class MainActivity : AppCompatActivity() {
 
             textStats = findViewById(R.id.textStats)
             inputSearch = findViewById(R.id.inputSearch)
+            spinnerSort = findViewById(R.id.spinnerSort)
             groupContainer = findViewById(R.id.groupContainer)
             textEmpty = findViewById(R.id.textEmpty)
             selectionActionsBar = findViewById(R.id.selectionActionsBar)
@@ -292,6 +298,7 @@ class MainActivity : AppCompatActivity() {
             findViewById<ImageButton>(R.id.btnGoogleMode).setOnClickListener { showGoogleModeDialog() }
             setupAdminPanelLongPress()
             inputSearch.doAfterTextChanged { renderContacts() }
+            setupSortSpinner()
             ensureNotificationsPermissionIfNeeded()
 
             migrateContactsIfNeeded()
@@ -393,12 +400,35 @@ class MainActivity : AppCompatActivity() {
         renderContacts()
     }
 
+    private fun setupSortSpinner() {
+        val options = SortOption.values()
+        val labels = options.map { getString(it.labelRes) }
+        spinnerSort.adapter = ArrayAdapter(
+            this,
+            android.R.layout.simple_spinner_dropdown_item,
+            labels,
+        )
+        spinnerSort.setSelection(selectedSortOption.ordinal, false)
+        spinnerSort.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
+                val next = options.getOrElse(position) { SortOption.NAME_ASC }
+                if (selectedSortOption != next) {
+                    selectedSortOption = next
+                    renderContacts()
+                }
+            }
+
+            override fun onNothingSelected(parent: AdapterView<*>?) = Unit
+        }
+    }
+
     private fun renderContacts() {
-        val query = inputSearch.text.toString().trim().lowercase(Locale.getDefault())
+        val query = inputSearch.text.toString().trim()
+        val queryLower = query.lowercase(Locale.getDefault())
         val allIds = allContacts.map { it.id }.toSet()
         selectedContactIds.removeAll { it !in allIds }
 
-        val list = allContacts
+        val filtered = allContacts
             .filter {
                 if (selectedGroupCode == ContactPrefsStorage.GROUP_ALL) {
                     it.group != ContactPrefsStorage.GROUP_SERVICE
@@ -409,18 +439,59 @@ class MainActivity : AppCompatActivity() {
                 }
             }
             .filter {
-                val fullName = listOfNotNull(it.name, it.lastName).joinToString(" ").lowercase(Locale.getDefault())
-                query.isBlank() ||
-                    fullName.contains(query) ||
-                    it.phone.lowercase(Locale.getDefault()).contains(query)
+                matchesSearchQuery(it, queryLower)
             }
-            .sortedWith(compareBy<Contact> { it.name.lowercase(Locale.getDefault()) }.thenBy { it.lastName.orEmpty().lowercase(Locale.getDefault()) })
+
+        val list = when (selectedSortOption) {
+            SortOption.NAME_ASC -> filtered.sortedWith(compareBy<Contact> {
+                it.name.lowercase(Locale.getDefault())
+            }.thenBy {
+                it.lastName.orEmpty().lowercase(Locale.getDefault())
+            }.thenBy {
+                it.id
+            })
+
+            SortOption.NAME_DESC -> filtered.sortedWith(compareByDescending<Contact> {
+                it.name.lowercase(Locale.getDefault())
+            }.thenByDescending {
+                it.lastName.orEmpty().lowercase(Locale.getDefault())
+            }.thenByDescending {
+                it.id
+            })
+
+            SortOption.CREATED_NEW -> filtered.sortedByDescending { it.id }
+            SortOption.CREATED_OLD -> filtered.sortedBy { it.id }
+        }
 
         adapter.submitList(list)
         adapter.setSelectedIds(selectedContactIds)
         updateSelectionUi()
-        AppEventLogger.info("UI", "Rendered contacts: ${list.size}, group=$selectedGroupCode, query='$query'")
+        AppEventLogger.info("UI", "Rendered contacts: ${list.size}, group=$selectedGroupCode, query='$queryLower', sort=${selectedSortOption.name}")
         textEmpty.visibility = if (list.isEmpty()) View.VISIBLE else View.GONE
+    }
+
+    private fun matchesSearchQuery(contact: Contact, queryLower: String): Boolean {
+        if (queryLower.isBlank()) return true
+        val fullName = listOfNotNull(contact.name, contact.lastName).joinToString(" ").lowercase(Locale.getDefault())
+        if (fullName.contains(queryLower)) return true
+
+        val phoneLower = contact.phone.lowercase(Locale.getDefault())
+        if (phoneLower.contains(queryLower)) return true
+
+        val compactQuery = queryLower.replace("[\\s\\-()]+".toRegex(), "")
+        val compactPhone = phoneLower.replace("[\\s\\-()]+".toRegex(), "")
+        if (compactQuery.isNotBlank() && compactPhone.contains(compactQuery)) return true
+
+        val queryDigits = PhoneNumberFormatter.digitsOnly(queryLower)
+        if (queryDigits.isBlank()) return false
+
+        val phoneDigits = PhoneNumberFormatter.digitsOnly(contact.phone)
+        if (phoneDigits.contains(queryDigits)) return true
+
+        val phoneRawDigits = PhoneNumberFormatter.normalizeRuKzRaw(contact.phone)
+            ?.let(PhoneNumberFormatter::digitsOnly)
+            .orEmpty()
+        return phoneRawDigits.contains(queryDigits)
     }
 
     private fun updateGroupTabsSelection() {
@@ -2105,6 +2176,7 @@ class MainActivity : AppCompatActivity() {
         val btnOpenLogs = dialogView.findViewById<Button>(R.id.btnOpenLogs)
         val btnViewDatabase = dialogView.findViewById<Button>(R.id.btnViewDatabase)
         val btnClearDatabase = dialogView.findViewById<Button>(R.id.btnClearDatabase)
+        val btnExportDatabaseXlsx = dialogView.findViewById<Button>(R.id.btnExportDatabaseXlsx)
         val btnDevelopersInfo = dialogView.findViewById<Button>(R.id.btnDevelopersInfo)
         val layoutRestartBypassCode = dialogView.findViewById<View>(R.id.layoutRestartBypassCode)
         val inputRestartBypassCode = dialogView.findViewById<EditText>(R.id.inputRestartBypassCode)
@@ -2178,11 +2250,13 @@ class MainActivity : AppCompatActivity() {
         btnOpenLogs.setOnClickListener { showLogFilesDialog() }
         btnViewDatabase.setOnClickListener { showDatabaseSnapshotDialog() }
         btnClearDatabase.setOnClickListener { requestDatabaseClearWithPin() }
+        btnExportDatabaseXlsx.setOnClickListener { exportDatabaseXlsx() }
         btnDevelopersInfo.setOnClickListener { showDevelopersDialog() }
         ThemeManager.applyGradientBackground(btnCheckUpdates, cornerDp = 12f)
         ThemeManager.applyGradientBackground(btnOpenLogs, cornerDp = 12f)
         ThemeManager.applyGradientBackground(btnViewDatabase, cornerDp = 12f)
         ThemeManager.applyGradientBackground(btnClearDatabase, cornerDp = 12f)
+        ThemeManager.applyGradientBackground(btnExportDatabaseXlsx, cornerDp = 12f)
         ThemeManager.applyGradientBackground(btnDevelopersInfo, cornerDp = 12f)
         if (controlsVisible) {
             ThemeManager.applyGradientBackground(btnApplyRestartBypassCode, cornerDp = 12f)
@@ -2389,6 +2463,65 @@ class MainActivity : AppCompatActivity() {
             .create()
         dialog.show()
         styleDialogButtons(dialog)
+    }
+
+    private fun exportDatabaseXlsx() {
+        val rows = storage.getDatabaseRows()
+        val exportDir = File(cacheDir, "contact_transfer").apply { mkdirs() }
+        val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
+        val outputFile = File(exportDir, "contact_database_$timestamp.xlsx")
+
+        val success = runCatching {
+            val headers = listOf(
+                "id",
+                "name",
+                "last_name",
+                "phone_masked",
+                "phone_raw",
+                "email",
+                "address",
+                "birthday",
+                "comment",
+                "avatar_color",
+                "avatar_photo_uri",
+                "group_code",
+                "is_favorite",
+                "is_imported",
+                "updated_at",
+            )
+            val data = rows.map { it.toXlsxRow() }
+            SimpleXlsxWriter.write(
+                file = outputFile,
+                sheetName = storage.getDatabaseTableName(),
+                headers = headers,
+                rows = data,
+            )
+
+            val uri = FileProvider.getUriForFile(
+                this,
+                "$packageName.fileprovider",
+                outputFile,
+            )
+            val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                putExtra(Intent.EXTRA_STREAM, uri)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            startActivity(Intent.createChooser(sendIntent, getString(R.string.admin_export_database_share_title)))
+            true
+        }.getOrElse {
+            AppEventLogger.error("ADMIN", "Failed to export database xlsx", it)
+            false
+        }
+
+        if (success) {
+            if (rows.isEmpty()) {
+                Toast.makeText(this, R.string.admin_export_database_empty, Toast.LENGTH_SHORT).show()
+            }
+            AppEventLogger.info("ADMIN", "Database exported to XLSX, rows=${rows.size}")
+        } else {
+            Toast.makeText(this, R.string.admin_export_database_failed, Toast.LENGTH_SHORT).show()
+        }
     }
 
     private fun requestLogsClearWithPin() {
@@ -2704,9 +2837,36 @@ class MainActivity : AppCompatActivity() {
         val groupCode: String,
     )
 
+    private fun ContactDatabaseMirror.DatabaseRow.toXlsxRow(): List<String> {
+        return listOf(
+            id.toString(),
+            name,
+            lastName,
+            phone,
+            phoneRaw,
+            email,
+            address,
+            birthday,
+            comment,
+            avatarColor,
+            avatarPhotoUri,
+            groupCode,
+            isFavorite.toString(),
+            isImported.toString(),
+            updatedAt.toString(),
+        )
+    }
+
+    private enum class SortOption(val labelRes: Int) {
+        NAME_ASC(R.string.sort_by_name_asc),
+        NAME_DESC(R.string.sort_by_name_desc),
+        CREATED_NEW(R.string.sort_by_created_new),
+        CREATED_OLD(R.string.sort_by_created_old),
+    }
+
     companion object {
         private const val COMMENT_MAX_LENGTH = 512
-        private const val ADMIN_HOLD_DURATION_MS = 5_000L
+        private const val ADMIN_HOLD_DURATION_MS = 2_000L
         private const val DEV_PREFS_NAME = "contact_manager_dev_settings"
         private const val KEY_NETWORK_MODE_ENABLED = "network_mode_enabled"
         private const val KEY_NETWORK_ACCOUNT = "network_mode_account"

@@ -658,9 +658,32 @@ class ContactEditorActivity : AppCompatActivity() {
                 if (formatted != s?.toString().orEmpty()) {
                     s?.replace(0, s.length, formatted)
                 }
+                inputBirthday.error = when (validateBirthdayDraft(digits, formatted)) {
+                    BirthdayDraftValidation.INVALID -> getString(R.string.error_birthday_format)
+                    else -> null
+                }
                 editing = false
             }
         })
+    }
+
+    private fun validateBirthdayDraft(digits: String, formatted: String): BirthdayDraftValidation {
+        if (digits.length >= 2) {
+            val day = digits.take(2).toIntOrNull() ?: return BirthdayDraftValidation.INVALID
+            if (day !in 1..31) return BirthdayDraftValidation.INVALID
+        }
+        if (digits.length >= 4) {
+            val month = digits.substring(2, 4).toIntOrNull() ?: return BirthdayDraftValidation.INVALID
+            if (month !in 1..12) return BirthdayDraftValidation.INVALID
+        }
+        if (digits.length == 8) {
+            return if (normalizeBirthday(formatted) == null) {
+                BirthdayDraftValidation.INVALID
+            } else {
+                BirthdayDraftValidation.VALID
+            }
+        }
+        return BirthdayDraftValidation.INCOMPLETE
     }
 
     private fun normalizeBirthday(rawValue: String): String? {
@@ -751,5 +774,11 @@ class ContactEditorActivity : AppCompatActivity() {
                 putExtra(EXTRA_READ_ONLY_CONTACT_JSON, payload)
             }
         }
+    }
+
+    private enum class BirthdayDraftValidation {
+        INCOMPLETE,
+        VALID,
+        INVALID,
     }
 }

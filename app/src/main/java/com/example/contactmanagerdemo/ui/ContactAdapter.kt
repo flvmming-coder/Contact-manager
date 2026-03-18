@@ -165,7 +165,7 @@ class ContactAdapter(
             val density = itemView.resources.displayMetrics.density
             button.background = GradientDrawable().apply {
                 shape = GradientDrawable.RECTANGLE
-                cornerRadius = 7f * density
+                cornerRadius = 9f * density
                 setColor(Color.TRANSPARENT)
                 setStroke((2f * density).toInt(), color)
             }

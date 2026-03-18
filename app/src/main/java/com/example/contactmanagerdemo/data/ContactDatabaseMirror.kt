@@ -8,6 +8,7 @@ import android.database.sqlite.SQLiteOpenHelper
 import android.os.Build
 import android.provider.Settings
 import android.telephony.TelephonyManager
+import com.example.contactmanagerdemo.core.PhoneNumberFormatter
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -47,7 +48,7 @@ class ContactDatabaseMirror(private val context: Context) {
             val total = db.compileStatement("SELECT COUNT(*) FROM $tableName").simpleQueryForLong()
             lines.add("Rows: $total")
             val cursor = db.rawQuery(
-                "SELECT id,name,last_name,phone,group_code,is_favorite,is_imported,updated_at FROM $tableName ORDER BY updated_at DESC LIMIT ?",
+                "SELECT id,name,last_name,phone,phone_raw,group_code,is_favorite,is_imported,updated_at FROM $tableName ORDER BY updated_at DESC LIMIT ?",
                 arrayOf(limit.toString()),
             )
             cursor.use {
@@ -56,15 +57,55 @@ class ContactDatabaseMirror(private val context: Context) {
                     val name = it.getString(1).orEmpty()
                     val lastName = it.getString(2).orEmpty()
                     val phone = it.getString(3).orEmpty()
-                    val group = it.getString(4).orEmpty()
-                    val favorite = it.getInt(5) == 1
-                    val imported = it.getInt(6) == 1
-                    val updated = it.getLong(7)
-                    lines.add("id=$id | $name $lastName | $phone | group=$group | fav=$favorite | imp=$imported | ts=$updated")
+                    val phoneRaw = it.getString(4).orEmpty()
+                    val group = it.getString(5).orEmpty()
+                    val favorite = it.getInt(6) == 1
+                    val imported = it.getInt(7) == 1
+                    val updated = it.getLong(8)
+                    lines.add("id=$id | $name $lastName | $phone | raw=$phoneRaw | group=$group | fav=$favorite | imp=$imported | ts=$updated")
                 }
             }
         }
         return lines.joinToString("\n")
+    }
+
+    fun getRows(limit: Int = Int.MAX_VALUE): List<DatabaseRow> {
+        val rows = mutableListOf<DatabaseRow>()
+        helper.readableDatabase.use { db ->
+            val cursor = db.rawQuery(
+                """
+                SELECT id,name,last_name,phone,phone_raw,email,address,birthday,comment,avatar_color,avatar_photo_uri,group_code,is_favorite,is_imported,updated_at
+                FROM $tableName
+                ORDER BY updated_at DESC
+                LIMIT ?
+                """.trimIndent(),
+                arrayOf(limit.toString()),
+            )
+            cursor.use {
+                while (it.moveToNext()) {
+                    rows.add(
+                        DatabaseRow(
+                            id = it.getLong(0),
+                            name = it.getString(1).orEmpty(),
+                            lastName = it.getString(2).orEmpty(),
+                            phone = it.getString(3).orEmpty(),
+                            phoneRaw = it.getString(4).orEmpty(),
+                            email = it.getString(5).orEmpty(),
+                            address = it.getString(6).orEmpty(),
+                            birthday = it.getString(7).orEmpty(),
+                            comment = it.getString(8).orEmpty(),
+                            avatarColor = it.getString(9).orEmpty(),
+                            avatarPhotoUri = it.getString(10).orEmpty(),
+                            groupCode = it.getString(11).orEmpty(),
+                            isFavorite = it.getInt(12) == 1,
+                            isImported = it.getInt(13) == 1,
+                            updatedAt = it.getLong(14),
+                        ),
+                    )
+                }
+            }
+        }
+        return rows
     }
 
     fun clearDatabase() {
@@ -79,6 +120,7 @@ class ContactDatabaseMirror(private val context: Context) {
             put("name", name)
             put("last_name", lastName)
             put("phone", phone)
+            put("phone_raw", PhoneNumberFormatter.normalizeRuKzRaw(phone))
             put("email", email)
             put("address", address)
             put("birthday", birthday)
@@ -112,6 +154,7 @@ class ContactDatabaseMirror(private val context: Context) {
                     name TEXT NOT NULL,
                     last_name TEXT,
                     phone TEXT NOT NULL,
+                    phone_raw TEXT,
                     email TEXT,
                     address TEXT,
                     birthday TEXT,
@@ -150,8 +193,26 @@ class ContactDatabaseMirror(private val context: Context) {
         }
     }
 
+    data class DatabaseRow(
+        val id: Long,
+        val name: String,
+        val lastName: String,
+        val phone: String,
+        val phoneRaw: String,
+        val email: String,
+        val address: String,
+        val birthday: String,
+        val comment: String,
+        val avatarColor: String,
+        val avatarPhotoUri: String,
+        val groupCode: String,
+        val isFavorite: Boolean,
+        val isImported: Boolean,
+        val updatedAt: Long,
+    )
+
     companion object {
         private const val DB_NAME = "contact_manager_mirror.db"
-        private const val DB_VERSION = 1
+        private const val DB_VERSION = 2
     }
 }

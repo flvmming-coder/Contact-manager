@@ -94,6 +94,18 @@ object PhoneNumberFormatter {
         }
     }
 
+    fun normalizeRuKzRaw(raw: String): String? {
+        val value = raw.trim()
+        if (value.isBlank()) return null
+        if (isServiceNumber(value) || isForeignInternational(value)) return null
+        val digits = normalizeRuKzDigits(value) ?: return null
+        return "+$digits"
+    }
+
+    fun digitsOnly(raw: String): String {
+        return raw.filter { it.isDigit() }
+    }
+
     private fun canFormatAsRuKz(raw: String): Boolean {
         val digits = raw.filter { it.isDigit() }
         if (digits.isBlank()) return false
@@ -103,5 +115,22 @@ object PhoneNumberFormatter {
             11 -> digits.startsWith("7") || digits.startsWith("8")
             else -> false
         }
+    }
+
+    private fun normalizeRuKzDigits(raw: String): String? {
+        if (!canFormatAsRuKz(raw)) return null
+        val digitsOnly = raw.filter { it.isDigit() }.toMutableList()
+        if (digitsOnly.isEmpty()) return null
+        if (digitsOnly[0] == '8') {
+            digitsOnly[0] = '7'
+        }
+        if (digitsOnly.size == 10) {
+            digitsOnly.add(0, '7')
+        }
+        if (digitsOnly[0] != '7') {
+            digitsOnly.add(0, '7')
+        }
+        val normalized = digitsOnly.take(11).joinToString("")
+        return if (normalized.length == 11 && normalized.startsWith("7")) normalized else null
     }
 }

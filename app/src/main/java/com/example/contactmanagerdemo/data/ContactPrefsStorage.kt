@@ -157,17 +157,21 @@ class ContactPrefsStorage(context: Context) {
             return seed.toMutableList()
         }
 
-        if (raw.isBlank()) return mutableListOf()
+        val result = if (raw.isBlank()) {
+            mutableListOf()
+        } else {
+            parseContactsSafely(raw)
+        }
 
-        val list = parseContactsSafely(raw)
-        if (list.isEmpty() && raw.trim() != "[]") {
+        if (result.isEmpty() && raw.trim() != "[]") {
             AppEventLogger.warn("DATA", "Stored contacts were empty/invalid, fallback to seed contacts")
             val seed = seedContacts()
             saveAllContacts(seed)
             return seed.toMutableList()
         }
 
-        return list
+        dbMirror.replaceAllContacts(result)
+        return result
     }
 
     fun saveAllContacts(contacts: List<Contact>) {
@@ -321,6 +325,8 @@ class ContactPrefsStorage(context: Context) {
     fun getDatabasePath(): String = dbMirror.getDatabasePath()
 
     fun getDatabaseSnapshot(limit: Int = 120): String = dbMirror.getSnapshot(limit)
+
+    fun getDatabaseRows(limit: Int = Int.MAX_VALUE): List<ContactDatabaseMirror.DatabaseRow> = dbMirror.getRows(limit)
 
     fun clearDatabaseMirror() {
         dbMirror.clearDatabase()

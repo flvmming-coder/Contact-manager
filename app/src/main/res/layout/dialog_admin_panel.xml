@@ -104,6 +104,14 @@
         android:layout_marginTop="8dp"
         android:text="@string/admin_clear_database" />
 
+    <Button
+        android:id="@+id/btnExportDatabaseXlsx"
+        style="@style/Widget.ContactManager.GradientButton.Small"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:text="@string/admin_export_database_xlsx" />
+
     <TextView
         android:id="@+id/textUpdateResult"
         android:layout_width="match_parent"
