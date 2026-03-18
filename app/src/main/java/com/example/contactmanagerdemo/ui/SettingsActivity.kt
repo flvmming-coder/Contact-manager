@@ -18,6 +18,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import com.example.contactmanagerdemo.R
 import com.example.contactmanagerdemo.core.AppEventLogger
+import com.example.contactmanagerdemo.core.DevSecurityManager
 import com.example.contactmanagerdemo.core.ThemeManager
 import com.example.contactmanagerdemo.data.ContactPrefsStorage
 
@@ -29,7 +30,6 @@ class SettingsActivity : AppCompatActivity() {
     private lateinit var btnSettingsTheme: Button
     private lateinit var btnSettingsTrash: Button
     private lateinit var btnSettingsClearAllInfo: Button
-    private val devPrefs by lazy { getSharedPreferences(DEV_PREFS_NAME, MODE_PRIVATE) }
     private val accentPaletteColors by lazy {
         AvatarColorPalette.allHexColors()
             .mapNotNull { hex -> runCatching { Color.parseColor(hex) }.getOrNull() }
@@ -317,7 +317,7 @@ class SettingsActivity : AppCompatActivity() {
     }
 
     private fun isRestartBypassAuthorized(): Boolean {
-        return devPrefs.getBoolean(KEY_RESTART_BYPASS_AUTHORIZED, false)
+        return DevSecurityManager.isRestartBypassAuthorized(this)
     }
 
     private fun confirmClearAllInfo() {
@@ -332,7 +332,7 @@ class SettingsActivity : AppCompatActivity() {
                     "Full reset requested by user; contactsBefore=$contactsBefore; groupsBefore=$groupsBefore",
                 )
                 storage.clearAllInfo()
-                getSharedPreferences(DEV_PREFS_NAME, MODE_PRIVATE).edit().clear().apply()
+                DevSecurityManager.registerFullResetAttempt(this)
                 AppEventLogger.info("DATA", "Full reset completed; logs preserved")
                 Toast.makeText(this, R.string.settings_clear_all_info_done, Toast.LENGTH_SHORT).show()
                 returnAction(ACTION_DATA_CLEARED)
@@ -379,7 +379,5 @@ class SettingsActivity : AppCompatActivity() {
         const val ACTION_EXPORT = "action_export"
         const val ACTION_DATA_CLEARED = "action_data_cleared"
         const val ACTION_THEME_RESTART_REQUIRED = "action_theme_restart_required"
-        private const val DEV_PREFS_NAME = "contact_manager_dev_settings"
-        private const val KEY_RESTART_BYPASS_AUTHORIZED = "restart_bypass_authorized"
     }
 }

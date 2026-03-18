@@ -1,6 +1,7 @@
 package com.example.contactmanagerdemo.ui
 
 import android.app.DatePickerDialog
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
@@ -23,8 +24,10 @@ import androidx.core.content.ContextCompat
 import com.example.contactmanagerdemo.R
 import com.example.contactmanagerdemo.core.AppEventLogger
 import com.example.contactmanagerdemo.core.PhoneNumberFormatter
+import com.example.contactmanagerdemo.core.ThemeManager
 import com.example.contactmanagerdemo.data.Contact
 import com.example.contactmanagerdemo.data.ContactPrefsStorage
+import org.json.JSONObject
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -50,6 +53,12 @@ class ContactEditorActivity : AppCompatActivity() {
     private lateinit var spinnerGroup: Spinner
     private lateinit var imageAvatarPreview: ImageView
     private lateinit var textAvatarPreview: TextView
+    private lateinit var btnEditorSave: Button
+    private lateinit var btnEditorDelete: Button
+    private lateinit var btnPickBirthday: Button
+    private lateinit var btnPickAvatarPhoto: Button
+    private lateinit var btnClearAvatarPhoto: Button
+    private var readOnlyMode: Boolean = false
     private val devPrefs by lazy { getSharedPreferences(DEV_PREFS_NAME, MODE_PRIVATE) }
 
     private val pickAvatarPhotoLauncher =
@@ -69,21 +78,40 @@ class ContactEditorActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_contact_editor)
         storage = ContactPrefsStorage(this)
+        readOnlyMode = intent.getBooleanExtra(EXTRA_READ_ONLY_MODE, false)
 
         val contactId = intent.getLongExtra(EXTRA_CONTACT_ID, -1L)
-        editingContact = storage.getAllContacts().firstOrNull { it.id == contactId }
+        editingContact = if (readOnlyMode) {
+            parseReadOnlyContact(intent.getStringExtra(EXTRA_READ_ONLY_CONTACT_JSON))
+        } else {
+            storage.getAllContacts().firstOrNull { it.id == contactId }
+        }
+        if (readOnlyMode && editingContact == null) {
+            Toast.makeText(this, R.string.error_startup_title, Toast.LENGTH_SHORT).show()
+            finish()
+            return
+        }
         avatarSeed = editingContact?.id ?: System.currentTimeMillis()
         selectedAvatarPhotoUri = editingContact?.avatarPhotoUri
         selectedAvatarColor = editingContact?.avatarColor
 
-        val title = if (editingContact == null) getString(R.string.title_add_contact) else getString(R.string.title_edit_contact)
+        val title = when {
+            readOnlyMode -> getString(R.string.title_view_deleted_contact)
+            editingContact == null -> getString(R.string.title_add_contact)
+            else -> getString(R.string.title_edit_contact)
+        }
         findViewById<TextView>(R.id.textEditorTitle).text = title
 
         findViewById<ImageButton>(R.id.btnEditorBack).setOnClickListener { finish() }
-        findViewById<Button>(R.id.btnEditorSave).setOnClickListener { saveContact() }
-        findViewById<Button>(R.id.btnEditorDelete).apply {
-            visibility = if (editingContact == null) View.GONE else View.VISIBLE
+        btnEditorSave = findViewById<Button>(R.id.btnEditorSave).also {
+            it.setOnClickListener { saveContact() }
+        }
+        btnEditorDelete = findViewById<Button>(R.id.btnEditorDelete).apply {
+            visibility = if (editingContact == null || readOnlyMode) View.GONE else View.VISIBLE
             setOnClickListener { editingContact?.let { showDeleteDialog(it) } }
+        }
+        if (readOnlyMode) {
+            btnEditorSave.visibility = View.GONE
         }
 
         inputName = findViewById(R.id.inputName)
@@ -101,6 +129,12 @@ class ContactEditorActivity : AppCompatActivity() {
         val showServiceGroup = devPrefs.getBoolean(KEY_SERVICE_GROUP_VISIBLE, false)
         editGroupCodes = storage.getEditableGroups().filter { code ->
             showServiceGroup || code != ContactPrefsStorage.GROUP_SERVICE
+        }
+        if (readOnlyMode) {
+            val currentGroup = editingContact?.group
+            if (!currentGroup.isNullOrBlank() && !editGroupCodes.contains(currentGroup)) {
+                editGroupCodes = listOf(currentGroup) + editGroupCodes
+            }
         }
         spinnerGroup.adapter = ArrayAdapter(
             this,
@@ -120,11 +154,17 @@ class ContactEditorActivity : AppCompatActivity() {
             override fun onNothingSelected(parent: AdapterView<*>?) = Unit
         }
 
-        findViewById<Button>(R.id.btnPickBirthday).setOnClickListener { showBirthdayDatePicker() }
-        findViewById<Button>(R.id.btnPickAvatarPhoto).setOnClickListener { pickAvatarPhotoLauncher.launch(arrayOf("image/*")) }
-        findViewById<Button>(R.id.btnClearAvatarPhoto).setOnClickListener {
-            selectedAvatarPhotoUri = null
-            updateAvatarPreview()
+        btnPickBirthday = findViewById<Button>(R.id.btnPickBirthday).also {
+            it.setOnClickListener { showBirthdayDatePicker() }
+        }
+        btnPickAvatarPhoto = findViewById<Button>(R.id.btnPickAvatarPhoto).also {
+            it.setOnClickListener { pickAvatarPhotoLauncher.launch(arrayOf("image/*")) }
+        }
+        btnClearAvatarPhoto = findViewById<Button>(R.id.btnClearAvatarPhoto).also {
+            it.setOnClickListener {
+                selectedAvatarPhotoUri = null
+                updateAvatarPreview()
+            }
         }
         findViewById<View>(R.id.layoutAvatarColorRow).visibility = View.GONE
 
@@ -132,6 +172,15 @@ class ContactEditorActivity : AppCompatActivity() {
         setupBirthdayInputMask()
         fillExistingData()
         updateAvatarPreview()
+        applyAccentUi()
+        if (readOnlyMode) {
+            enableReadOnlyState()
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        applyAccentUi()
     }
 
     private fun fillExistingData() {
@@ -154,7 +203,40 @@ class ContactEditorActivity : AppCompatActivity() {
         spinnerGroup.setSelection(index)
     }
 
+    private fun applyAccentUi() {
+        ThemeManager.applyGradientBackground(btnEditorSave, cornerDp = 12f)
+        ThemeManager.applyGradientBackground(btnEditorDelete, cornerDp = 12f)
+        ThemeManager.applyGradientBackground(btnPickBirthday, cornerDp = 12f)
+        ThemeManager.applyGradientBackground(btnPickAvatarPhoto, cornerDp = 12f)
+        ThemeManager.applyGradientBackground(btnClearAvatarPhoto, cornerDp = 12f)
+    }
+
+    private fun enableReadOnlyState() {
+        val fields = listOf(
+            inputName,
+            inputLastName,
+            inputPhone,
+            inputEmail,
+            inputAddress,
+            inputBirthday,
+            inputComment,
+            inputCustomGroupTitle,
+        )
+        fields.forEach {
+            it.isEnabled = false
+            it.isFocusable = false
+            it.isFocusableInTouchMode = false
+            it.isLongClickable = false
+            it.isClickable = false
+        }
+        spinnerGroup.isEnabled = false
+        btnPickBirthday.visibility = View.GONE
+        btnPickAvatarPhoto.visibility = View.GONE
+        btnClearAvatarPhoto.visibility = View.GONE
+    }
+
     private fun saveContact() {
+        if (readOnlyMode) return
         val name = inputName.text.toString().trim()
         val lastName = inputLastName.text.toString().trim().ifBlank { null }
         val rawPhone = inputPhone.text.toString().trim()
@@ -238,7 +320,7 @@ class ContactEditorActivity : AppCompatActivity() {
 
     private fun showDeleteDialog(contact: Contact) {
         val retentionDays = storage.getTrashRetentionDays()
-        AlertDialog.Builder(this)
+        val dialog = AlertDialog.Builder(this)
             .setTitle(R.string.title_delete_contact)
             .setMessage(getString(R.string.message_delete_contact, listOfNotNull(contact.name, contact.lastName).joinToString(" "), retentionDays))
             .setPositiveButton(R.string.action_delete) { _, _ ->
@@ -248,7 +330,9 @@ class ContactEditorActivity : AppCompatActivity() {
                 finish()
             }
             .setNegativeButton(R.string.action_cancel, null)
-            .show()
+            .create()
+        dialog.show()
+        styleDialogButtons(dialog)
     }
 
     private fun updateAvatarPreview() {
@@ -467,10 +551,71 @@ class ContactEditorActivity : AppCompatActivity() {
         }.getOrNull()
     }
 
+    private fun styleDialogButtons(dialog: AlertDialog) {
+        listOf(
+            AlertDialog.BUTTON_POSITIVE,
+            AlertDialog.BUTTON_NEGATIVE,
+            AlertDialog.BUTTON_NEUTRAL,
+        ).forEach { id ->
+            val button = dialog.getButton(id) ?: return@forEach
+            ThemeManager.applyGradientBackground(button, cornerDp = 12f)
+            button.isAllCaps = false
+            button.textSize = 12f
+            button.minHeight = dp(34)
+            button.minimumHeight = dp(34)
+        }
+    }
+
+    private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
+
+    private fun parseReadOnlyContact(rawJson: String?): Contact? {
+        val json = rawJson?.takeIf { it.isNotBlank() } ?: return null
+        return runCatching {
+            val obj = JSONObject(json)
+            Contact(
+                id = obj.optLong("id", System.currentTimeMillis()),
+                name = obj.optString("name"),
+                lastName = obj.optString("lastName").ifBlank { null },
+                phone = obj.optString("phone"),
+                email = obj.optString("email").ifBlank { null },
+                address = obj.optString("address").ifBlank { null },
+                birthday = obj.optString("birthday").ifBlank { null },
+                comment = obj.optString("comment").ifBlank { null },
+                avatarColor = obj.optString("avatarColor").ifBlank { null },
+                avatarPhotoUri = obj.optString("avatarPhotoUri").ifBlank { null },
+                group = obj.optString("group", ContactPrefsStorage.GROUP_UNASSIGNED),
+                isImported = obj.optBoolean("isImported", false),
+            )
+        }.getOrNull()
+    }
+
     companion object {
         const val EXTRA_CONTACT_ID = "extra_contact_id"
+        private const val EXTRA_READ_ONLY_MODE = "extra_read_only_mode"
+        private const val EXTRA_READ_ONLY_CONTACT_JSON = "extra_read_only_contact_json"
         private const val COMMENT_MAX_LENGTH = 512
         private const val DEV_PREFS_NAME = "contact_manager_dev_settings"
         private const val KEY_SERVICE_GROUP_VISIBLE = "service_group_visible"
+
+        fun buildReadOnlyIntent(context: Context, contact: Contact): Intent {
+            val payload = JSONObject().apply {
+                put("id", contact.id)
+                put("name", contact.name)
+                put("lastName", contact.lastName)
+                put("phone", contact.phone)
+                put("email", contact.email)
+                put("address", contact.address)
+                put("birthday", contact.birthday)
+                put("comment", contact.comment)
+                put("avatarColor", contact.avatarColor)
+                put("avatarPhotoUri", contact.avatarPhotoUri)
+                put("group", contact.group)
+                put("isImported", contact.isImported)
+            }.toString()
+            return Intent(context, ContactEditorActivity::class.java).apply {
+                putExtra(EXTRA_READ_ONLY_MODE, true)
+                putExtra(EXTRA_READ_ONLY_CONTACT_JSON, payload)
+            }
+        }
     }
 }

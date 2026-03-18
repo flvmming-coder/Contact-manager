@@ -57,6 +57,7 @@ import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.google.android.gms.common.api.ApiException
 import com.example.contactmanagerdemo.R
 import com.example.contactmanagerdemo.core.AppEventLogger
+import com.example.contactmanagerdemo.core.DevSecurityManager
 import com.example.contactmanagerdemo.core.PhoneNumberFormatter
 import com.example.contactmanagerdemo.core.ThemeManager
 import com.example.contactmanagerdemo.core.UpdateChecker
@@ -236,6 +237,7 @@ class MainActivity : AppCompatActivity() {
                 onEdit = { contact -> openContactEditor(contact.id) },
                 onSelectStarted = { contact -> beginSelectionMode(contact) },
                 onSelectionToggle = { contact -> toggleContactSelection(contact) },
+                onFavoriteToggle = { contact -> toggleFavoriteContact(contact) },
                 isSelectionMode = { isSelectionModeActive() },
             )
             recyclerView.adapter = adapter
@@ -496,6 +498,19 @@ class MainActivity : AppCompatActivity() {
         selectionActionsBar.visibility = if (count > 0) View.VISIBLE else View.GONE
         btnAddContact.visibility = if (count > 0) View.GONE else View.VISIBLE
         textSelectionCount.text = getString(R.string.selection_count, count)
+    }
+
+    private fun toggleFavoriteContact(contact: Contact) {
+        val favoritesCode = storage.ensureFavoritesGroup()
+        val targetGroup = if (contact.group == favoritesCode) {
+            ContactPrefsStorage.GROUP_UNASSIGNED
+        } else {
+            favoritesCode
+        }
+        storage.upsert(contact.copy(group = targetGroup))
+        AppEventLogger.info("DATA", "Favorite toggled for id=${contact.id}; group=$targetGroup")
+        setupFilterGroups()
+        loadContactsAndRender()
     }
 
     private fun showBulkAssignGroupDialog() {
@@ -1834,6 +1849,7 @@ class MainActivity : AppCompatActivity() {
         val btnCheckUpdates = dialogView.findViewById<Button>(R.id.btnCheckUpdates)
         val btnOpenLogs = dialogView.findViewById<Button>(R.id.btnOpenLogs)
         val btnDevelopersInfo = dialogView.findViewById<Button>(R.id.btnDevelopersInfo)
+        val layoutRestartBypassCode = dialogView.findViewById<View>(R.id.layoutRestartBypassCode)
         val inputRestartBypassCode = dialogView.findViewById<EditText>(R.id.inputRestartBypassCode)
         val btnApplyRestartBypassCode = dialogView.findViewById<Button>(R.id.btnApplyRestartBypassCode)
         val textRestartBypassStatus = dialogView.findViewById<TextView>(R.id.textRestartBypassStatus)
@@ -1847,6 +1863,8 @@ class MainActivity : AppCompatActivity() {
             resources.getInteger(R.integer.update_sequence),
         )
         textLogPathValue.text = getString(R.string.admin_log_path_value, AppEventLogger.getCurrentLogDirectory(this))
+        val controlsVisible = DevSecurityManager.isBypassCodeControlsVisible(this)
+        layoutRestartBypassCode.visibility = if (controlsVisible) View.VISIBLE else View.GONE
         textRestartBypassStatus.text = if (isRestartBypassAuthorized()) {
             getString(R.string.admin_restart_bypass_status_on)
         } else {
@@ -1873,18 +1891,19 @@ class MainActivity : AppCompatActivity() {
             val code = inputRestartBypassCode.text?.toString().orEmpty().trim()
             val imm = getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager
             if (code == RESTART_BYPASS_PIN) {
-                setRestartBypassAuthorized(true)
+                DevSecurityManager.handleValidCodeEntered(this)
                 textRestartBypassStatus.text = getString(R.string.admin_restart_bypass_status_on)
                 inputRestartBypassCode.text?.clear()
                 imm.hideSoftInputFromWindow(inputRestartBypassCode.windowToken, 0)
                 Toast.makeText(this, R.string.admin_restart_bypass_success, Toast.LENGTH_SHORT).show()
                 AppEventLogger.info("ADMIN", "Restart bypass code accepted")
             } else {
-                setRestartBypassAuthorized(false)
+                DevSecurityManager.handleInvalidCodeAttempt(this)
                 textRestartBypassStatus.text = getString(R.string.admin_restart_bypass_status_off)
                 inputRestartBypassCode.text?.clear()
                 inputRestartBypassCode.clearFocus()
                 imm.hideSoftInputFromWindow(inputRestartBypassCode.windowToken, 0)
+                layoutRestartBypassCode.visibility = View.GONE
                 Toast.makeText(this, R.string.admin_restart_bypass_invalid, Toast.LENGTH_SHORT).show()
                 AppEventLogger.warn("ADMIN", "Invalid restart bypass code attempt")
             }
@@ -1904,7 +1923,9 @@ class MainActivity : AppCompatActivity() {
         ThemeManager.applyGradientBackground(btnCheckUpdates, cornerDp = 12f)
         ThemeManager.applyGradientBackground(btnOpenLogs, cornerDp = 12f)
         ThemeManager.applyGradientBackground(btnDevelopersInfo, cornerDp = 12f)
-        ThemeManager.applyGradientBackground(btnApplyRestartBypassCode, cornerDp = 12f)
+        if (controlsVisible) {
+            ThemeManager.applyGradientBackground(btnApplyRestartBypassCode, cornerDp = 12f)
+        }
 
         val dialog = AlertDialog.Builder(this)
             .setTitle(R.string.admin_panel_title)
@@ -1932,11 +1953,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun isRestartBypassAuthorized(): Boolean {
-        return devPrefs.getBoolean(KEY_RESTART_BYPASS_AUTHORIZED, false)
-    }
-
-    private fun setRestartBypassAuthorized(enabled: Boolean) {
-        devPrefs.edit().putBoolean(KEY_RESTART_BYPASS_AUTHORIZED, enabled).apply()
+        return DevSecurityManager.isRestartBypassAuthorized(this)
     }
 
     private fun showDevelopersDialog() {
@@ -2373,7 +2390,6 @@ class MainActivity : AppCompatActivity() {
         private const val KEY_NETWORK_ACCOUNT = "network_mode_account"
         private const val KEY_AVATAR_COLOR_EDITOR_ENABLED = "avatar_color_editor_enabled"
         private const val KEY_SERVICE_GROUP_VISIBLE = "service_group_visible"
-        private const val KEY_RESTART_BYPASS_AUTHORIZED = "restart_bypass_authorized"
         private const val DEVELOPER_SUPPORT_EMAIL = "flvmming.dev@gmail.com"
         private const val LOG_CLEAR_PIN = "0183"
         private const val RESTART_BYPASS_PIN = "1410"

@@ -39,6 +39,7 @@ class ContactPrefsStorage(context: Context) {
             GROUP_UNASSIGNED -> appContext.getString(R.string.group_unassigned)
             GROUP_OTHER -> appContext.getString(R.string.group_other)
             GROUP_SERVICE -> appContext.getString(R.string.group_service)
+            GROUP_FAVORITES -> appContext.getString(R.string.group_favorites)
             else -> getStoredGroups().firstOrNull { it.code == code }?.title
                 ?: appContext.getString(R.string.group_unassigned)
         }
@@ -94,11 +95,33 @@ class ContactPrefsStorage(context: Context) {
         return GROUP_SERVICE
     }
 
+    fun ensureFavoritesGroup(): String {
+        val groups = getStoredGroups().toMutableList()
+        val index = groups.indexOfFirst { it.code == GROUP_FAVORITES }
+        if (index >= 0) {
+            val expectedTitle = appContext.getString(R.string.group_favorites)
+            if (groups[index].title != expectedTitle) {
+                groups[index] = groups[index].copy(title = expectedTitle)
+                saveStoredGroups(groups)
+            }
+            return GROUP_FAVORITES
+        }
+
+        groups.add(
+            GroupDef(
+                code = GROUP_FAVORITES,
+                title = appContext.getString(R.string.group_favorites),
+            ),
+        )
+        saveStoredGroups(groups)
+        return GROUP_FAVORITES
+    }
+
     fun renameGroup(code: String, rawTitle: String): Boolean {
         val title = rawTitle.trim()
         if (title.isBlank()) return false
         if (isVirtualOtherTitle(title)) return false
-        if (code == GROUP_ALL || code == GROUP_UNASSIGNED || code == GROUP_SERVICE) return false
+        if (code == GROUP_ALL || code == GROUP_UNASSIGNED || code == GROUP_SERVICE || code == GROUP_FAVORITES) return false
 
         val groups = getStoredGroups().toMutableList()
         val index = groups.indexOfFirst { it.code == code }
@@ -113,7 +136,7 @@ class ContactPrefsStorage(context: Context) {
     }
 
     fun deleteGroup(code: String): Int {
-        if (code == GROUP_ALL || code == GROUP_UNASSIGNED || code == GROUP_SERVICE) return 0
+        if (code == GROUP_ALL || code == GROUP_UNASSIGNED || code == GROUP_SERVICE || code == GROUP_FAVORITES) return 0
 
         val groups = getStoredGroups().toMutableList()
         val removed = groups.removeAll { it.code == code }
@@ -618,6 +641,7 @@ class ContactPrefsStorage(context: Context) {
         const val GROUP_WORK = "work"
         const val GROUP_OTHER = "other"
         const val GROUP_SERVICE = "service"
+        const val GROUP_FAVORITES = "favorites"
         private const val TRASH_RETENTION_DAYS_FIXED = 30
     }
 }

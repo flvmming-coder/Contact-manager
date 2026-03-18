@@ -1,6 +1,7 @@
 package com.example.contactmanagerdemo.ui
 
 import android.graphics.drawable.GradientDrawable
+import android.content.res.Configuration
 import android.net.Uri
 import android.os.SystemClock
 import android.view.LayoutInflater
@@ -14,12 +15,14 @@ import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.RecyclerView
 import com.example.contactmanagerdemo.R
 import com.example.contactmanagerdemo.data.Contact
+import com.example.contactmanagerdemo.data.ContactPrefsStorage
 import java.util.Locale
 
 class ContactAdapter(
     private val onEdit: (Contact) -> Unit,
     private val onSelectStarted: (Contact) -> Unit,
     private val onSelectionToggle: (Contact) -> Unit,
+    private val onFavoriteToggle: (Contact) -> Unit,
     private val isSelectionMode: () -> Boolean,
 ) : RecyclerView.Adapter<ContactAdapter.ContactViewHolder>() {
 
@@ -58,6 +61,7 @@ class ContactAdapter(
         private val textAvatar: TextView = itemView.findViewById(R.id.textAvatar)
         private val textName: TextView = itemView.findViewById(R.id.textName)
         private val textPhone: TextView = itemView.findViewById(R.id.textPhone)
+        private val textFavorite: TextView = itemView.findViewById(R.id.textFavorite)
 
         fun bind(contact: Contact, position: Int) {
             textName.text = listOfNotNull(contact.name, contact.lastName).joinToString(" ")
@@ -65,6 +69,7 @@ class ContactAdapter(
             bindSectionHeader(contact, position)
 
             bindAvatar(contact)
+            bindFavoriteMarker(contact)
             applySelectionStyle(selectedIds.contains(contact.id))
 
             root.setOnLongClickListener {
@@ -124,6 +129,23 @@ class ContactAdapter(
                     }
                 }
                 false
+            }
+        }
+
+        private fun bindFavoriteMarker(contact: Contact) {
+            val active = contact.group == ContactPrefsStorage.GROUP_FAVORITES
+            val bgColor = when {
+                active -> 0xFFBE123C.toInt()
+                isDarkTheme() -> 0xFFA3A5BD.toInt()
+                else -> 0xFF334155.toInt()
+            }
+            textFavorite.background = GradientDrawable().apply {
+                shape = GradientDrawable.RECTANGLE
+                cornerRadius = 6f * itemView.resources.displayMetrics.density
+                setColor(bgColor)
+            }
+            textFavorite.setOnClickListener {
+                onFavoriteToggle(contact)
             }
         }
 
@@ -206,6 +228,11 @@ class ContactAdapter(
 
         private fun avatarColorFor(contact: Contact): Int {
             return AvatarColorPalette.resolveColorInt(contact.avatarColor, contact.id)
+        }
+
+        private fun isDarkTheme(): Boolean {
+            val mode = itemView.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK
+            return mode == Configuration.UI_MODE_NIGHT_YES
         }
     }
 

@@ -3,6 +3,7 @@ package com.example.contactmanagerdemo
 import android.app.Application
 import android.os.Build
 import com.example.contactmanagerdemo.core.AppEventLogger
+import com.example.contactmanagerdemo.core.DevSecurityManager
 import com.example.contactmanagerdemo.core.ThemeManager
 import com.example.contactmanagerdemo.core.UpdateNotificationHelper
 import com.example.contactmanagerdemo.core.UpdateWorkScheduler
@@ -10,7 +11,7 @@ import com.example.contactmanagerdemo.core.UpdateWorkScheduler
 class ContactManagerApplication : Application() {
     override fun onCreate() {
         super.onCreate()
-        resetSessionFlags()
+        DevSecurityManager.resetSessionFlags(this)
         AppEventLogger.init(this)
         runCatching { ThemeManager.applySavedTheme(this) }
             .onFailure { error ->
@@ -25,6 +26,7 @@ class ContactManagerApplication : Application() {
         val previousVersion = prefs.getString(KEY_LAST_RUN_VERSION, null)
         if (!previousVersion.isNullOrBlank() && previousVersion != version) {
             AppEventLogger.info("UPDATE", "Application updated from version=$previousVersion to version=$version")
+            DevSecurityManager.markAppUpdated(this)
         }
         prefs.edit()
             .putString(KEY_LAST_RUN_VERSION, version)
@@ -40,15 +42,5 @@ class ContactManagerApplication : Application() {
         private const val PREFS_NAME = "contact_manager_dev_settings"
         private const val KEY_LAST_RUN_VERSION = "last_run_version"
         private const val KEY_LAST_RUN_AT = "last_run_at"
-        private const val KEY_SERVICE_GROUP_VISIBLE = "service_group_visible"
-        private const val KEY_RESTART_BYPASS_AUTHORIZED = "restart_bypass_authorized"
-    }
-
-    private fun resetSessionFlags() {
-        getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
-            .edit()
-            .putBoolean(KEY_SERVICE_GROUP_VISIBLE, false)
-            .putBoolean(KEY_RESTART_BYPASS_AUTHORIZED, false)
-            .apply()
     }
 }

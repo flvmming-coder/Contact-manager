@@ -8,6 +8,7 @@ import android.widget.TextView
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.content.ContextCompat
 import com.example.contactmanagerdemo.R
+import kotlin.math.roundToInt
 
 object ThemeManager {
 
@@ -104,8 +105,18 @@ object ThemeManager {
             cornerRadius = cornerDp * density
         }
         if (view is TextView) {
-            view.setTextColor(Color.WHITE)
+            view.setTextColor(resolveReadableTextColor(start, end))
         }
+    }
+
+    private fun resolveReadableTextColor(start: Int, end: Int): Int {
+        val mixed = Color.rgb(
+            ((Color.red(start) + Color.red(end)) / 2f).roundToInt(),
+            ((Color.green(start) + Color.green(end)) / 2f).roundToInt(),
+            ((Color.blue(start) + Color.blue(end)) / 2f).roundToInt(),
+        )
+        val luminance = (0.299 * Color.red(mixed) + 0.587 * Color.green(mixed) + 0.114 * Color.blue(mixed)) / 255.0
+        return if (luminance > 0.62) Color.BLACK else Color.WHITE
     }
 
     private fun prefs(context: Context) =
