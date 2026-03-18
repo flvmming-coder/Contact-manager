@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
@@ -6,10 +6,52 @@
     android:orientation="vertical"
     android:padding="12dp">
 
+    <FrameLayout
+        android:layout_width="84dp"
+        android:layout_height="84dp"
+        android:layout_gravity="center_horizontal"
+        android:background="@drawable/bg_avatar_rounded"
+        android:clipToOutline="true">
+
+        <ImageView
+            android:id="@+id/imageAvatarPreview"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:contentDescription="@string/hint_avatar_photo"
+            android:scaleType="centerCrop"
+            android:visibility="gone" />
+
+        <TextView
+            android:id="@+id/textAvatarPreview"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:gravity="center"
+            android:textColor="@android:color/white"
+            android:textSize="26sp"
+            android:textStyle="bold" />
+    </FrameLayout>
+
+    <Button
+        android:id="@+id/btnPickAvatarPhoto"
+        style="@style/Widget.ContactManager.GradientButton.Small"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:text="@string/action_pick_avatar_photo" />
+
+    <Button
+        android:id="@+id/btnClearAvatarPhoto"
+        style="@style/Widget.ContactManager.GradientButton.Small"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:text="@string/action_clear_avatar_photo" />
+
     <EditText
         android:id="@+id/inputName"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
         android:background="@drawable/bg_dialog_input"
         android:hint="@string/hint_name"
         android:inputType="textPersonName"
@@ -99,61 +141,6 @@
         android:minLines="3"
         android:textColor="@color/text_primary"
         android:textColorHint="@color/text_secondary" />
-
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:gravity="center_vertical"
-        android:orientation="horizontal">
-
-        <FrameLayout
-            android:layout_width="56dp"
-            android:layout_height="56dp"
-            android:background="@drawable/bg_avatar_rounded"
-            android:clipToOutline="true">
-
-            <ImageView
-                android:id="@+id/imageAvatarPreview"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:contentDescription="@string/hint_avatar_photo"
-                android:scaleType="centerCrop"
-                android:visibility="gone" />
-
-            <TextView
-                android:id="@+id/textAvatarPreview"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:gravity="center"
-                android:textColor="@android:color/white"
-                android:textSize="18sp"
-                android:textStyle="bold" />
-        </FrameLayout>
-
-        <LinearLayout
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="8dp"
-            android:layout_weight="1"
-            android:orientation="vertical">
-
-            <Button
-                android:id="@+id/btnPickAvatarPhoto"
-                style="@style/Widget.ContactManager.GradientButton.Small"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="@string/action_pick_avatar_photo" />
-
-            <Button
-                android:id="@+id/btnClearAvatarPhoto"
-                style="@style/Widget.ContactManager.GradientButton.Small"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="6dp"
-                android:text="@string/action_clear_avatar_photo" />
-        </LinearLayout>
-    </LinearLayout>
 
     <LinearLayout
         android:id="@+id/layoutAvatarColorRow"

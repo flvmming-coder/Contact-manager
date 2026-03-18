@@ -3,6 +3,7 @@ package com.example.contactmanagerdemo.core
 import android.graphics.Bitmap
 import com.example.contactmanagerdemo.data.Contact
 import com.google.zxing.BarcodeFormat
+import com.google.zxing.EncodeHintType
 import com.google.zxing.MultiFormatWriter
 import org.json.JSONObject
 
@@ -58,32 +59,37 @@ object ContactQrCodec {
 
     fun decode(raw: String): TransferContact? {
         return runCatching {
-            val obj = JSONObject(raw)
+            val obj = JSONObject(repairMojibake(raw))
             if (obj.optString(KEY_TYPE) != PAYLOAD_TYPE) return null
-            val name = obj.optString(KEY_NAME).trim()
-            val phone = obj.optString(KEY_PHONE).trim()
+            val name = repairMojibake(obj.optString(KEY_NAME)).trim()
+            val phone = repairMojibake(obj.optString(KEY_PHONE)).trim()
             if (name.isBlank() || phone.isBlank()) return null
 
             TransferContact(
                 name = name,
-                lastName = sanitize(obj.optString(KEY_LAST_NAME)),
+                lastName = sanitize(repairMojibake(obj.optString(KEY_LAST_NAME))),
                 phone = phone,
-                email = sanitize(obj.optString(KEY_EMAIL)),
-                address = sanitize(obj.optString(KEY_ADDRESS)),
-                birthday = sanitize(obj.optString(KEY_BIRTHDAY)),
-                comment = sanitize(obj.optString(KEY_COMMENT))?.take(COMMENT_MAX_LENGTH),
-                avatarColor = sanitize(obj.optString(KEY_AVATAR_COLOR)),
+                email = sanitize(repairMojibake(obj.optString(KEY_EMAIL))),
+                address = sanitize(repairMojibake(obj.optString(KEY_ADDRESS))),
+                birthday = sanitize(repairMojibake(obj.optString(KEY_BIRTHDAY))),
+                comment = sanitize(repairMojibake(obj.optString(KEY_COMMENT)))?.take(COMMENT_MAX_LENGTH),
+                avatarColor = sanitize(repairMojibake(obj.optString(KEY_AVATAR_COLOR))),
             )
         }.getOrNull()
     }
 
     fun generateBitmap(payload: String, sizePx: Int): Bitmap? {
         return runCatching {
+            val hints = mapOf(
+                EncodeHintType.CHARACTER_SET to "UTF-8",
+                EncodeHintType.MARGIN to 1,
+            )
             val matrix = MultiFormatWriter().encode(
                 payload,
                 BarcodeFormat.QR_CODE,
                 sizePx,
                 sizePx,
+                hints,
             )
             Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888).also { bitmap ->
                 for (x in 0 until sizePx) {
@@ -97,6 +103,18 @@ object ContactQrCodec {
 
     private fun sanitize(raw: String?): String? {
         return raw?.trim()?.ifBlank { null }
+    }
+
+    private fun repairMojibake(rawValue: String): String {
+        if (rawValue.isBlank()) return rawValue
+        val looksBroken = rawValue.contains('\u00D0') ||
+            rawValue.contains('\u00D1') ||
+            rawValue.contains('\u00C3') ||
+            rawValue.contains('\uFFFD')
+        if (!looksBroken) return rawValue
+        return runCatching {
+            String(rawValue.toByteArray(Charsets.ISO_8859_1), Charsets.UTF_8)
+        }.getOrDefault(rawValue)
     }
 
     private const val PAYLOAD_TYPE = "contact_manager_contact"

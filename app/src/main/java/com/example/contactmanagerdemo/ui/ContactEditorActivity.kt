@@ -191,7 +191,7 @@ class ContactEditorActivity : AppCompatActivity() {
             }
         }
         btnScanQr = findViewById<Button>(R.id.btnScanQr).also {
-            it.visibility = if (readOnlyMode) View.GONE else View.VISIBLE
+            it.visibility = if (!readOnlyMode && editingContact == null) View.VISIBLE else View.GONE
             it.setOnClickListener { startQrScanFlow() }
         }
         btnGenerateQr = findViewById<Button>(R.id.btnGenerateQr).also {
@@ -414,7 +414,8 @@ class ContactEditorActivity : AppCompatActivity() {
             .setDesiredBarcodeFormats(ScanOptions.QR_CODE)
             .setPrompt(getString(R.string.qr_scan_prompt))
             .setBeepEnabled(false)
-            .setOrientationLocked(false)
+            .setOrientationLocked(true)
+            .setCaptureActivity(QrPortraitCaptureActivity::class.java)
         qrScanLauncher.launch(options)
     }
 
