@@ -96,22 +96,65 @@ class SettingsActivity : AppCompatActivity() {
             getString(R.string.theme_light),
             getString(R.string.theme_dark),
             getString(R.string.theme_system),
+            getString(R.string.theme_color_deuteranomaly),
+            getString(R.string.theme_color_protanomaly),
+            getString(R.string.theme_color_tritanomaly),
+            getString(R.string.theme_color_monochrome),
         )
-        val currentIndex = when (ThemeManager.getThemeMode(this)) {
-            ThemeManager.ThemeMode.LIGHT -> 0
-            ThemeManager.ThemeMode.DARK -> 1
-            ThemeManager.ThemeMode.SYSTEM -> 2
+        val currentVisionMode = ThemeManager.getColorVisionMode(this)
+        val currentIndex = when (currentVisionMode) {
+            ThemeManager.ColorVisionMode.DEUTERANOMALY -> 3
+            ThemeManager.ColorVisionMode.PROTANOMALY -> 4
+            ThemeManager.ColorVisionMode.TRITANOMALY -> 5
+            ThemeManager.ColorVisionMode.MONOCHROME -> 6
+            ThemeManager.ColorVisionMode.NORMAL -> when (ThemeManager.getThemeMode(this)) {
+                ThemeManager.ThemeMode.LIGHT -> 0
+                ThemeManager.ThemeMode.DARK -> 1
+                ThemeManager.ThemeMode.SYSTEM -> 2
+            }
         }
         val dialog = AlertDialog.Builder(this)
             .setTitle(R.string.settings_theme_mode_branch)
             .setSingleChoiceItems(options, currentIndex) { choiceDialog, which ->
-                val selected = when (which) {
-                    1 -> ThemeManager.ThemeMode.DARK
-                    2 -> ThemeManager.ThemeMode.SYSTEM
-                    else -> ThemeManager.ThemeMode.LIGHT
+                when (which) {
+                    1 -> {
+                        ThemeManager.setThemeMode(this, ThemeManager.ThemeMode.DARK)
+                        ThemeManager.setColorVisionMode(this, ThemeManager.ColorVisionMode.NORMAL)
+                        AppEventLogger.info("THEME", "Theme mode changed to dark")
+                    }
+
+                    2 -> {
+                        ThemeManager.setThemeMode(this, ThemeManager.ThemeMode.SYSTEM)
+                        ThemeManager.setColorVisionMode(this, ThemeManager.ColorVisionMode.NORMAL)
+                        AppEventLogger.info("THEME", "Theme mode changed to system")
+                    }
+
+                    3 -> {
+                        ThemeManager.setColorVisionMode(this, ThemeManager.ColorVisionMode.DEUTERANOMALY)
+                        AppEventLogger.info("THEME", "Color vision mode changed to deuteranomaly")
+                    }
+
+                    4 -> {
+                        ThemeManager.setColorVisionMode(this, ThemeManager.ColorVisionMode.PROTANOMALY)
+                        AppEventLogger.info("THEME", "Color vision mode changed to protanomaly")
+                    }
+
+                    5 -> {
+                        ThemeManager.setColorVisionMode(this, ThemeManager.ColorVisionMode.TRITANOMALY)
+                        AppEventLogger.info("THEME", "Color vision mode changed to tritanomaly")
+                    }
+
+                    6 -> {
+                        ThemeManager.setColorVisionMode(this, ThemeManager.ColorVisionMode.MONOCHROME)
+                        AppEventLogger.info("THEME", "Color vision mode changed to monochrome")
+                    }
+
+                    else -> {
+                        ThemeManager.setThemeMode(this, ThemeManager.ThemeMode.LIGHT)
+                        ThemeManager.setColorVisionMode(this, ThemeManager.ColorVisionMode.NORMAL)
+                        AppEventLogger.info("THEME", "Theme mode changed to light")
+                    }
                 }
-                ThemeManager.setThemeMode(this, selected)
-                AppEventLogger.info("THEME", "Theme mode changed to ${selected.storageValue}")
                 Toast.makeText(this, R.string.settings_theme_saved, Toast.LENGTH_SHORT).show()
                 choiceDialog.dismiss()
                 onThemeChanged()

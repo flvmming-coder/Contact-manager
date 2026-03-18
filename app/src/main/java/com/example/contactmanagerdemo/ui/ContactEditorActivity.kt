@@ -310,6 +310,7 @@ class ContactEditorActivity : AppCompatActivity() {
             avatarColor = selectedAvatarColor,
             avatarPhotoUri = selectedAvatarPhotoUri,
             group = groupCode,
+            isFavorite = editingContact?.isFavorite ?: false,
             isImported = editingContact?.isImported ?: false,
         )
         storage.upsert(contact)
@@ -584,6 +585,7 @@ class ContactEditorActivity : AppCompatActivity() {
                 avatarColor = obj.optString("avatarColor").ifBlank { null },
                 avatarPhotoUri = obj.optString("avatarPhotoUri").ifBlank { null },
                 group = obj.optString("group", ContactPrefsStorage.GROUP_UNASSIGNED),
+                isFavorite = obj.optBoolean("isFavorite", false),
                 isImported = obj.optBoolean("isImported", false),
             )
         }.getOrNull()
@@ -610,6 +612,7 @@ class ContactEditorActivity : AppCompatActivity() {
                 put("avatarColor", contact.avatarColor)
                 put("avatarPhotoUri", contact.avatarPhotoUri)
                 put("group", contact.group)
+                put("isFavorite", contact.isFavorite)
                 put("isImported", contact.isImported)
             }.toString()
             return Intent(context, ContactEditorActivity::class.java).apply {

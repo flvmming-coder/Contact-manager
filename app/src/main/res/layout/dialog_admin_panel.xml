@@ -13,20 +13,20 @@
         android:text="@string/admin_logs_toggle" />
 
     <TextView
-        android:id="@+id/textVersionValue"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="10dp"
-        android:textColor="@color/text_primary"
-        android:textSize="14sp" />
-
-    <TextView
         android:id="@+id/textLogPathValue"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="6dp"
         android:textColor="@color/text_secondary"
         android:textSize="13sp" />
+
+    <TextView
+        android:id="@+id/textVersionValue"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:textColor="@color/text_primary"
+        android:textSize="14sp" />
 
     <androidx.appcompat.widget.SwitchCompat
         android:id="@+id/switchColorEditor"

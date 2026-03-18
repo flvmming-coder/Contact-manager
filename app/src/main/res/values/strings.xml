@@ -165,11 +165,15 @@
     <string name="settings_change_theme">\u0421\u043c\u0435\u043d\u0438\u0442\u044c \u0442\u0435\u043c\u0443</string>
     <string name="settings_trash">\u041a\u043e\u0440\u0437\u0438\u043d\u0430</string>
     <string name="settings_theme_title">\u0422\u0435\u043c\u0430 \u043f\u0440\u0438\u043b\u043e\u0436\u0435\u043d\u0438\u044f</string>
-    <string name="settings_theme_mode_branch">\u041e\u0441\u043d\u043e\u0432\u043d\u0430\u044f \u0442\u0435\u043c\u0430 (\u0441\u0432\u0435\u0442\u043b\u0430\u044f/\u0442\u0435\u043c\u043d\u0430\u044f/\u0441\u0438\u0441\u0442\u0435\u043c\u043d\u0430\u044f)</string>
+    <string name="settings_theme_mode_branch">\u041e\u0441\u043d\u043e\u0432\u043d\u0430\u044f \u0442\u0435\u043c\u0430</string>
     <string name="settings_theme_accent_branch">\u0426\u0432\u0435\u0442 \u0430\u043a\u0442\u0438\u0432\u043d\u044b\u0445 \u043a\u043d\u043e\u043f\u043e\u043a</string>
     <string name="theme_light">\u0421\u0432\u0435\u0442\u043b\u0430\u044f</string>
     <string name="theme_dark">\u0422\u0435\u043c\u043d\u0430\u044f</string>
     <string name="theme_system">\u0421\u0438\u0441\u0442\u0435\u043c\u043d\u0430\u044f</string>
+    <string name="theme_color_deuteranomaly">\u0414\u0435\u0439\u0442\u0435\u0440\u0430\u043d\u043e\u043c\u0430\u043b\u0438\u044f</string>
+    <string name="theme_color_protanomaly">\u041f\u0440\u043e\u0442\u0430\u043d\u043e\u043c\u0430\u043b\u0438\u044f</string>
+    <string name="theme_color_tritanomaly">\u0422\u0440\u0438\u0442\u0430\u043d\u043e\u043c\u0430\u043b\u0438\u044f</string>
+    <string name="theme_color_monochrome">\u041c\u043e\u043d\u043e\u0445\u0440\u043e\u043c</string>
     <string name="theme_accent_yellow">\u0416\u0435\u043b\u0442\u0430\u044f</string>
     <string name="theme_accent_light_gray">\u0421\u0432\u0435\u0442\u043b\u043e-\u0441\u0435\u0440\u0430\u044f</string>
     <string name="theme_accent_lilac">\u0421\u0438\u0440\u0435\u043d\u0435\u0432\u0430\u044f</string>

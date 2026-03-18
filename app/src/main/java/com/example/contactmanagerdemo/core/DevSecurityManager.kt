@@ -73,7 +73,6 @@ object DevSecurityManager {
         prefs(context).edit()
             .putBoolean(KEY_RESTART_BYPASS_AUTHORIZED, false)
             .putBoolean(KEY_SERVICE_GROUP_VISIBLE, false)
-            .putBoolean(KEY_LAST_ACTION_FULL_RESET, false)
             .apply()
     }
 

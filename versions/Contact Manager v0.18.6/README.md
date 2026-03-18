@@ -1,4 +1,4 @@
-﻿# Contact Manager v0.18.6 (PRE-RELEASE)
+﻿# Contact Manager v0.18.6 (RELEASE)
 
 Причина обновления:
 - после 0.18.5 требовалось усилить защиту админ-части и доработать визуальные/UX-детали;
@@ -36,3 +36,4 @@
 
 APK:
 - ContactManager-v0.18.6-debug.apk
+

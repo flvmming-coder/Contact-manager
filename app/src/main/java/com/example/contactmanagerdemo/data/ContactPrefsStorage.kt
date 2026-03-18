@@ -15,7 +15,7 @@ class ContactPrefsStorage(context: Context) {
     fun getAvailableGroups(): List<String> {
         return getStoredGroups()
             .asSequence()
-            .filterNot { it.code == GROUP_OTHER }
+            .filterNot { it.code == GROUP_OTHER || it.code == GROUP_FAVORITES }
             .map { it.code }
             .distinct()
             .toList()
@@ -30,7 +30,11 @@ class ContactPrefsStorage(context: Context) {
     }
 
     fun getFilterGroups(): List<String> {
-        return listOf(GROUP_ALL) + getAvailableGroups()
+        return buildList {
+            add(GROUP_ALL)
+            add(GROUP_FAVORITES)
+            addAll(getAvailableGroups())
+        }.distinct()
     }
 
     fun getGroupTitle(code: String): String {
@@ -47,7 +51,7 @@ class ContactPrefsStorage(context: Context) {
 
     fun getGroupsForManage(): List<Pair<String, String>> {
         return getStoredGroups()
-            .filterNot { it.code == GROUP_OTHER }
+            .filterNot { it.code == GROUP_OTHER || it.code == GROUP_FAVORITES }
             .map { it.code to it.title }
     }
 
@@ -55,6 +59,7 @@ class ContactPrefsStorage(context: Context) {
         val title = rawTitle.trim()
         if (title.isBlank()) return GROUP_UNASSIGNED
         if (isVirtualOtherTitle(title)) return GROUP_UNASSIGNED
+        if (isVirtualFavoritesTitle(title)) return GROUP_UNASSIGNED
 
         val groups = getStoredGroups().toMutableList()
         val existing = groups.firstOrNull { normalizeTitle(it.title) == normalizeTitle(title) }
@@ -70,6 +75,7 @@ class ContactPrefsStorage(context: Context) {
         val title = rawTitle.trim()
         if (title.isBlank()) return null
         if (isVirtualOtherTitle(title)) return null
+        if (isVirtualFavoritesTitle(title)) return null
         return ensureGroupByTitle(title)
     }
 
@@ -96,24 +102,6 @@ class ContactPrefsStorage(context: Context) {
     }
 
     fun ensureFavoritesGroup(): String {
-        val groups = getStoredGroups().toMutableList()
-        val index = groups.indexOfFirst { it.code == GROUP_FAVORITES }
-        if (index >= 0) {
-            val expectedTitle = appContext.getString(R.string.group_favorites)
-            if (groups[index].title != expectedTitle) {
-                groups[index] = groups[index].copy(title = expectedTitle)
-                saveStoredGroups(groups)
-            }
-            return GROUP_FAVORITES
-        }
-
-        groups.add(
-            GroupDef(
-                code = GROUP_FAVORITES,
-                title = appContext.getString(R.string.group_favorites),
-            ),
-        )
-        saveStoredGroups(groups)
         return GROUP_FAVORITES
     }
 
@@ -199,6 +187,7 @@ class ContactPrefsStorage(context: Context) {
                     put("avatarColor", contact.avatarColor)
                     put("avatarPhotoUri", contact.avatarPhotoUri)
                     put("group", sanitizeGroup(contact.group, validCodes))
+                    put("isFavorite", contact.isFavorite)
                     put("isImported", contact.isImported)
                 },
             )
@@ -355,6 +344,8 @@ class ContactPrefsStorage(context: Context) {
                 }
 
                 val rawGroup = repairMojibake(obj.optString("group", GROUP_UNASSIGNED))
+                val normalizedGroup = normalizeLegacyGroup(rawGroup)
+                val favoriteByLegacyGroup = normalizedGroup == GROUP_FAVORITES
                 result.add(
                     Contact(
                         id = id,
@@ -367,7 +358,8 @@ class ContactPrefsStorage(context: Context) {
                         comment = repairMojibake(obj.optString("comment")).trim().ifBlank { null },
                         avatarColor = repairMojibake(obj.optString("avatarColor")).trim().ifBlank { null },
                         avatarPhotoUri = repairMojibake(obj.optString("avatarPhotoUri")).trim().ifBlank { null },
-                        group = sanitizeGroup(normalizeLegacyGroup(rawGroup), validCodes),
+                        group = sanitizeGroup(normalizedGroup, validCodes),
+                        isFavorite = obj.optBoolean("isFavorite", favoriteByLegacyGroup),
                         isImported = obj.optBoolean("isImported", obj.optBoolean("imported", false)),
                     ),
                 )
@@ -421,6 +413,7 @@ class ContactPrefsStorage(context: Context) {
                 val code = obj.optString("code").trim()
                 val title = obj.optString("title").trim()
                 if (code.isBlank() || title.isBlank()) continue
+                if (code == GROUP_FAVORITES) continue
                 parsed.add(GroupDef(code = code, title = title))
             }
             parsed
@@ -495,6 +488,7 @@ class ContactPrefsStorage(context: Context) {
                                 normalizeLegacyGroup(repairMojibake(contactObj.optString("group", GROUP_UNASSIGNED))),
                                 validCodes,
                             ),
+                            isFavorite = contactObj.optBoolean("isFavorite", false),
                             isImported = contactObj.optBoolean("isImported", false),
                         ),
                         deletedAtMs = deletedAt,
@@ -527,6 +521,7 @@ class ContactPrefsStorage(context: Context) {
                             put("avatarColor", entry.contact.avatarColor)
                             put("avatarPhotoUri", entry.contact.avatarPhotoUri)
                             put("group", entry.contact.group)
+                            put("isFavorite", entry.contact.isFavorite)
                             put("isImported", entry.contact.isImported)
                         },
                     )
@@ -569,6 +564,7 @@ class ContactPrefsStorage(context: Context) {
             fixMojibakeToken("другое") -> GROUP_OTHER
 
             GROUP_SERVICE -> GROUP_SERVICE
+            GROUP_FAVORITES -> GROUP_FAVORITES
             else -> group.trim()
         }
     }
@@ -576,6 +572,7 @@ class ContactPrefsStorage(context: Context) {
     private fun sanitizeGroup(group: String, validCodes: Set<String>): String {
         val normalized = group.trim()
         if (normalized.isBlank() || normalized == GROUP_ALL) return GROUP_UNASSIGNED
+        if (normalized == GROUP_FAVORITES) return GROUP_UNASSIGNED
         if (normalized == GROUP_UNASSIGNED) return GROUP_UNASSIGNED
         return if (validCodes.contains(normalized)) normalized else GROUP_UNASSIGNED
     }
@@ -600,6 +597,10 @@ class ContactPrefsStorage(context: Context) {
 
     private fun isVirtualOtherTitle(value: String): Boolean {
         return normalizeTitle(value) == normalizeTitle(appContext.getString(R.string.group_other))
+    }
+
+    private fun isVirtualFavoritesTitle(value: String): Boolean {
+        return normalizeTitle(value) == normalizeTitle(appContext.getString(R.string.group_favorites))
     }
 
     private fun repairMojibake(value: String): String {

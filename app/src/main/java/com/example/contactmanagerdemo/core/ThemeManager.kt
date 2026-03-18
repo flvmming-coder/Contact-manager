@@ -26,6 +26,14 @@ object ThemeManager {
         CUSTOM("custom", "#F59E0B", "#FBBF24"),
     }
 
+    enum class ColorVisionMode(val storageValue: String) {
+        NORMAL("normal"),
+        DEUTERANOMALY("deuteranomaly"),
+        PROTANOMALY("protanomaly"),
+        TRITANOMALY("tritanomaly"),
+        MONOCHROME("monochrome"),
+    }
+
     fun applySavedTheme(context: Context) {
         val resolvedMode = runCatching { getThemeMode(context) }
             .getOrDefault(ThemeMode.LIGHT)
@@ -75,6 +83,15 @@ object ThemeManager {
         prefs(context).edit().putString(KEY_ACCENT_PRESET, preset.storageValue).apply()
     }
 
+    fun getColorVisionMode(context: Context): ColorVisionMode {
+        val value = prefs(context).getString(KEY_COLOR_VISION_MODE, ColorVisionMode.NORMAL.storageValue).orEmpty()
+        return ColorVisionMode.entries.firstOrNull { it.storageValue == value } ?: ColorVisionMode.NORMAL
+    }
+
+    fun setColorVisionMode(context: Context, mode: ColorVisionMode) {
+        prefs(context).edit().putString(KEY_COLOR_VISION_MODE, mode.storageValue).apply()
+    }
+
     fun setCustomAccent(context: Context, startColor: Int, endColor: Int) {
         prefs(context).edit()
             .putString(KEY_CUSTOM_ACCENT_START, colorToHex(startColor))
@@ -85,14 +102,16 @@ object ThemeManager {
 
     fun getAccentGradient(context: Context): Pair<Int, Int> {
         val preset = getAccentPreset(context)
-        if (preset != AccentPreset.CUSTOM) {
-            return parseColorSafe(preset.fallbackStart, ContextCompat.getColor(context, R.color.primary)) to
+        val baseGradient = if (preset != AccentPreset.CUSTOM) {
+            parseColorSafe(preset.fallbackStart, ContextCompat.getColor(context, R.color.primary)) to
                 parseColorSafe(preset.fallbackEnd, ContextCompat.getColor(context, R.color.accent))
+        } else {
+            val startHex = prefs(context).getString(KEY_CUSTOM_ACCENT_START, preset.fallbackStart).orEmpty()
+            val endHex = prefs(context).getString(KEY_CUSTOM_ACCENT_END, preset.fallbackEnd).orEmpty()
+            parseColorSafe(startHex, ContextCompat.getColor(context, R.color.primary)) to
+                parseColorSafe(endHex, ContextCompat.getColor(context, R.color.accent))
         }
-        val startHex = prefs(context).getString(KEY_CUSTOM_ACCENT_START, preset.fallbackStart).orEmpty()
-        val endHex = prefs(context).getString(KEY_CUSTOM_ACCENT_END, preset.fallbackEnd).orEmpty()
-        return parseColorSafe(startHex, ContextCompat.getColor(context, R.color.primary)) to
-            parseColorSafe(endHex, ContextCompat.getColor(context, R.color.accent))
+        return applyColorVisionMode(baseGradient, getColorVisionMode(context))
     }
 
     fun applyGradientBackground(view: View, cornerDp: Float = 12f) {
@@ -117,6 +136,16 @@ object ThemeManager {
         )
         val luminance = (0.299 * Color.red(mixed) + 0.587 * Color.green(mixed) + 0.114 * Color.blue(mixed)) / 255.0
         return if (luminance > 0.62) Color.BLACK else Color.WHITE
+    }
+
+    private fun applyColorVisionMode(gradient: Pair<Int, Int>, mode: ColorVisionMode): Pair<Int, Int> {
+        return when (mode) {
+            ColorVisionMode.NORMAL -> gradient
+            ColorVisionMode.DEUTERANOMALY -> Color.parseColor("#2563EB") to Color.parseColor("#22D3EE")
+            ColorVisionMode.PROTANOMALY -> Color.parseColor("#0F766E") to Color.parseColor("#14B8A6")
+            ColorVisionMode.TRITANOMALY -> Color.parseColor("#B45309") to Color.parseColor("#F59E0B")
+            ColorVisionMode.MONOCHROME -> Color.parseColor("#64748B") to Color.parseColor("#CBD5E1")
+        }
     }
 
     private fun prefs(context: Context) =
@@ -145,4 +174,5 @@ object ThemeManager {
     private const val KEY_ACCENT_PRESET = "accent_preset"
     private const val KEY_CUSTOM_ACCENT_START = "accent_custom_start"
     private const val KEY_CUSTOM_ACCENT_END = "accent_custom_end"
+    private const val KEY_COLOR_VISION_MODE = "color_vision_mode"
 }

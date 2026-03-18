@@ -12,5 +12,6 @@ data class Contact(
     val avatarColor: String? = null,
     val avatarPhotoUri: String? = null,
     val group: String,
+    val isFavorite: Boolean = false,
     val isImported: Boolean = false,
 )

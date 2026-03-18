@@ -7,6 +7,7 @@ import android.content.Context
 import android.app.DownloadManager
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.res.ColorStateList
 import android.content.pm.PackageManager
 import android.database.Cursor
 import android.graphics.Color
@@ -37,6 +38,7 @@ import android.widget.EditText
 import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.LinearLayout
+import android.widget.ProgressBar
 import android.widget.SeekBar
 import android.widget.Spinner
 import android.widget.ScrollView
@@ -83,7 +85,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var selectionActionsBar: LinearLayout
     private lateinit var textSelectionCount: TextView
     private lateinit var btnAddContact: View
-    private lateinit var importProgress: View
+    private lateinit var importProgress: ProgressBar
     private val selectedContactIds = linkedSetOf<Long>()
 
     private var allContacts: MutableList<Contact> = mutableListOf()
@@ -372,6 +374,8 @@ class MainActivity : AppCompatActivity() {
             .filter {
                 if (selectedGroupCode == ContactPrefsStorage.GROUP_ALL) {
                     it.group != ContactPrefsStorage.GROUP_SERVICE
+                } else if (selectedGroupCode == ContactPrefsStorage.GROUP_FAVORITES) {
+                    it.isFavorite && (isServiceGroupVisible() || it.group != ContactPrefsStorage.GROUP_SERVICE)
                 } else {
                     it.group == selectedGroupCode
                 }
@@ -448,6 +452,10 @@ class MainActivity : AppCompatActivity() {
         findViewById<ImageButton>(R.id.btnSettings).setColorFilter(endColor)
         findViewById<ImageButton>(R.id.btnGoogleMode).setColorFilter(endColor)
         findViewById<ImageButton>(R.id.btnGroupSettings).setColorFilter(endColor)
+        if (this::importProgress.isInitialized) {
+            importProgress.indeterminateTintList = ColorStateList.valueOf(endColor)
+            importProgress.progressTintList = ColorStateList.valueOf(endColor)
+        }
         findViewById<ImageView>(R.id.imageHeaderIcon).apply {
             background = GradientDrawable(
                 GradientDrawable.Orientation.LEFT_RIGHT,
@@ -501,14 +509,9 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun toggleFavoriteContact(contact: Contact) {
-        val favoritesCode = storage.ensureFavoritesGroup()
-        val targetGroup = if (contact.group == favoritesCode) {
-            ContactPrefsStorage.GROUP_UNASSIGNED
-        } else {
-            favoritesCode
-        }
-        storage.upsert(contact.copy(group = targetGroup))
-        AppEventLogger.info("DATA", "Favorite toggled for id=${contact.id}; group=$targetGroup")
+        val targetFavorite = !contact.isFavorite
+        storage.upsert(contact.copy(isFavorite = targetFavorite))
+        AppEventLogger.info("DATA", "Favorite toggled for id=${contact.id}; favorite=$targetFavorite")
         setupFilterGroups()
         loadContactsAndRender()
     }
@@ -1961,6 +1964,7 @@ class MainActivity : AppCompatActivity() {
         val lineKozin = getString(R.string.developers_line_kozin)
         val lineProject = getString(R.string.developers_line_project)
         val lineSupport = getString(R.string.developers_support_line)
+        val linkColor = if (this::textStats.isInitialized) textStats.currentTextColor else ContextCompat.getColor(this, R.color.stats_text)
 
         val builder = SpannableStringBuilder()
         builder.append(getString(R.string.developers_dialog_title))
@@ -1969,7 +1973,7 @@ class MainActivity : AppCompatActivity() {
         val kurStart = builder.length
         builder.append(lineKurenkov)
         builder.setSpan(
-            DeveloperLinkSpan("https://vk.com/lxrdx"),
+            DeveloperLinkSpan("https://vk.com/lxrdx", linkColor),
             kurStart,
             kurStart + "Kurenkov E. E.".length,
             Spanned.SPAN_EXCLUSIVE_EXCLUSIVE,
@@ -1979,7 +1983,7 @@ class MainActivity : AppCompatActivity() {
         val kozStart = builder.length
         builder.append(lineKozin)
         builder.setSpan(
-            DeveloperLinkSpan("https://vk.com/id225880613"),
+            DeveloperLinkSpan("https://vk.com/id225880613", linkColor),
             kozStart,
             kozStart + "Kozin S. V.".length,
             Spanned.SPAN_EXCLUSIVE_EXCLUSIVE,
@@ -1994,7 +1998,7 @@ class MainActivity : AppCompatActivity() {
             val start = supportStart + emailStartOffset
             val end = start + DEVELOPER_SUPPORT_EMAIL.length
             builder.setSpan(
-                DeveloperLinkSpan("mailto:$DEVELOPER_SUPPORT_EMAIL"),
+                DeveloperLinkSpan("mailto:$DEVELOPER_SUPPORT_EMAIL", linkColor),
                 start,
                 end,
                 Spanned.SPAN_EXCLUSIVE_EXCLUSIVE,
@@ -2356,7 +2360,10 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private inner class DeveloperLinkSpan(private val url: String) : ClickableSpan() {
+    private inner class DeveloperLinkSpan(
+        private val url: String,
+        private val color: Int,
+    ) : ClickableSpan() {
         override fun onClick(widget: View) {
             runCatching {
                 startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
@@ -2365,7 +2372,7 @@ class MainActivity : AppCompatActivity() {
 
         override fun updateDrawState(ds: TextPaint) {
             super.updateDrawState(ds)
-            ds.color = ContextCompat.getColor(this@MainActivity, R.color.accent)
+            ds.color = color
             ds.isUnderlineText = true
         }
     }

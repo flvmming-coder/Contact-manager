@@ -2,6 +2,7 @@ package com.example.contactmanagerdemo.ui
 
 import android.graphics.drawable.GradientDrawable
 import android.content.res.Configuration
+import android.graphics.Color
 import android.net.Uri
 import android.os.SystemClock
 import android.view.LayoutInflater
@@ -15,7 +16,6 @@ import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.RecyclerView
 import com.example.contactmanagerdemo.R
 import com.example.contactmanagerdemo.data.Contact
-import com.example.contactmanagerdemo.data.ContactPrefsStorage
 import java.util.Locale
 
 class ContactAdapter(
@@ -133,17 +133,20 @@ class ContactAdapter(
         }
 
         private fun bindFavoriteMarker(contact: Contact) {
-            val active = contact.group == ContactPrefsStorage.GROUP_FAVORITES
-            val bgColor = when {
+            val active = contact.isFavorite
+            val markerColor = when {
                 active -> 0xFFBE123C.toInt()
                 isDarkTheme() -> 0xFFA3A5BD.toInt()
                 else -> 0xFF334155.toInt()
             }
+            val density = itemView.resources.displayMetrics.density
             textFavorite.background = GradientDrawable().apply {
                 shape = GradientDrawable.RECTANGLE
-                cornerRadius = 6f * itemView.resources.displayMetrics.density
-                setColor(bgColor)
+                cornerRadius = 7f * density
+                setColor(Color.TRANSPARENT)
+                setStroke((2f * density).toInt(), markerColor)
             }
+            textFavorite.setTextColor(markerColor)
             textFavorite.setOnClickListener {
                 onFavoriteToggle(contact)
             }
