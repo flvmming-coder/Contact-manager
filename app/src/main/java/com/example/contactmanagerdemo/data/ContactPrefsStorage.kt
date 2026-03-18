@@ -11,6 +11,7 @@ class ContactPrefsStorage(context: Context) {
 
     private val appContext = context.applicationContext
     private val prefs = appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    private val dbMirror = ContactDatabaseMirror(appContext)
 
     fun getAvailableGroups(): List<String> {
         return getStoredGroups()
@@ -173,7 +174,10 @@ class ContactPrefsStorage(context: Context) {
         ensureGroupsInitialized()
         val validCodes = getAvailableGroups().toSet()
         val array = JSONArray()
-        contacts.forEach { contact ->
+        val sanitizedContacts = contacts.map { contact ->
+            contact.copy(group = sanitizeGroup(contact.group, validCodes))
+        }
+        sanitizedContacts.forEach { contact ->
             array.put(
                 JSONObject().apply {
                     put("id", contact.id)
@@ -186,13 +190,14 @@ class ContactPrefsStorage(context: Context) {
                     put("comment", contact.comment)
                     put("avatarColor", contact.avatarColor)
                     put("avatarPhotoUri", contact.avatarPhotoUri)
-                    put("group", sanitizeGroup(contact.group, validCodes))
+                    put("group", contact.group)
                     put("isFavorite", contact.isFavorite)
                     put("isImported", contact.isImported)
                 },
             )
         }
         prefs.edit().putString(KEY_CONTACTS, array.toString()).apply()
+        dbMirror.replaceAllContacts(sanitizedContacts)
     }
 
     fun upsert(contact: Contact) {
@@ -213,6 +218,7 @@ class ContactPrefsStorage(context: Context) {
 
     fun clearAll() {
         prefs.edit().putString(KEY_CONTACTS, "[]").apply()
+        dbMirror.replaceAllContacts(emptyList())
     }
 
     fun moveContactToTrash(contactId: Long, @Suppress("UNUSED_PARAMETER") retentionDays: Int): Boolean {
@@ -308,6 +314,16 @@ class ContactPrefsStorage(context: Context) {
             .putString(KEY_GROUPS, "[]")
             .putInt(KEY_TRASH_RETENTION_DAYS, TRASH_RETENTION_DAYS_FIXED)
             .apply()
+    }
+
+    fun getDatabaseTableName(): String = dbMirror.getTableName()
+
+    fun getDatabasePath(): String = dbMirror.getDatabasePath()
+
+    fun getDatabaseSnapshot(limit: Int = 120): String = dbMirror.getSnapshot(limit)
+
+    fun clearDatabaseMirror() {
+        dbMirror.clearDatabase()
     }
 
     private fun ensureGroupsInitialized() {

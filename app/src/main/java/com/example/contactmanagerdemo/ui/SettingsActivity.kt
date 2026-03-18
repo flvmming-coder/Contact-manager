@@ -27,6 +27,7 @@ class SettingsActivity : AppCompatActivity() {
     private lateinit var storage: ContactPrefsStorage
     private lateinit var btnSettingsImport: Button
     private lateinit var btnSettingsExport: Button
+    private lateinit var btnSettingsTransferAll: Button
     private lateinit var btnSettingsTheme: Button
     private lateinit var btnSettingsTrash: Button
     private lateinit var btnSettingsClearAllInfo: Button
@@ -46,6 +47,9 @@ class SettingsActivity : AppCompatActivity() {
         }
         btnSettingsExport = findViewById<Button>(R.id.btnSettingsExport).also {
             it.setOnClickListener { returnAction(ACTION_EXPORT) }
+        }
+        btnSettingsTransferAll = findViewById<Button>(R.id.btnSettingsTransferAll).also {
+            it.setOnClickListener { returnAction(ACTION_TRANSFER_ALL) }
         }
         btnSettingsTheme = findViewById<Button>(R.id.btnSettingsTheme).also {
             it.setOnClickListener { showThemeSelectorDialog() }
@@ -390,6 +394,7 @@ class SettingsActivity : AppCompatActivity() {
         listOf(
             btnSettingsImport,
             btnSettingsExport,
+            btnSettingsTransferAll,
             btnSettingsTheme,
             btnSettingsTrash,
             btnSettingsClearAllInfo,
@@ -420,6 +425,7 @@ class SettingsActivity : AppCompatActivity() {
         const val EXTRA_ACTION = "extra_action"
         const val ACTION_IMPORT = "action_import"
         const val ACTION_EXPORT = "action_export"
+        const val ACTION_TRANSFER_ALL = "action_transfer_all"
         const val ACTION_DATA_CLEARED = "action_data_cleared"
         const val ACTION_THEME_RESTART_REQUIRED = "action_theme_restart_required"
     }

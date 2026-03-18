@@ -62,17 +62,22 @@ import com.example.contactmanagerdemo.core.AppEventLogger
 import com.example.contactmanagerdemo.core.ContactQrCodec
 import com.example.contactmanagerdemo.core.DevSecurityManager
 import com.example.contactmanagerdemo.core.PhoneNumberFormatter
+import com.example.contactmanagerdemo.core.QrAvatarCodec
 import com.example.contactmanagerdemo.core.ThemeManager
 import com.example.contactmanagerdemo.core.UpdateChecker
 import com.example.contactmanagerdemo.data.Contact
 import com.example.contactmanagerdemo.data.ContactPrefsStorage
 import java.io.File
+import java.io.FileOutputStream
+import java.io.InputStreamReader
 import java.io.OutputStreamWriter
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 import android.text.TextPaint
+import com.journeyapps.barcodescanner.ScanContract
+import com.journeyapps.barcodescanner.ScanOptions
 
 class MainActivity : AppCompatActivity() {
 
@@ -168,6 +173,26 @@ class MainActivity : AppCompatActivity() {
                 AppEventLogger.warn("SETTINGS", "VCF export failed")
             }
         }
+    private val requestQrCameraPermissionLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            if (granted) {
+                launchBulkQrScanner()
+            } else {
+                Toast.makeText(this, R.string.qr_camera_permission_required, Toast.LENGTH_SHORT).show()
+                AppEventLogger.warn("QR", "Camera permission denied for bulk QR import")
+            }
+        }
+    private val bulkQrScanLauncher =
+        registerForActivityResult(ScanContract()) { result ->
+            val payload = result.contents.orEmpty()
+            if (payload.isBlank()) return@registerForActivityResult
+            importAllContactsFromQrPayload(payload)
+        }
+    private val importTransferFileLauncher =
+        registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+            if (uri == null) return@registerForActivityResult
+            importAllContactsFromFile(uri)
+        }
     private val googleSignInLauncher =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
             val data = result.data
@@ -197,6 +222,7 @@ class MainActivity : AppCompatActivity() {
             when (action) {
                 SettingsActivity.ACTION_IMPORT -> showImportContactsConfirmDialog()
                 SettingsActivity.ACTION_EXPORT -> startVcfExportFlow()
+                SettingsActivity.ACTION_TRANSFER_ALL -> showAllContactsTransferDialog()
                 SettingsActivity.ACTION_DATA_CLEARED -> {
                     loadContactsAndRender()
                     setupFilterGroups()
@@ -519,7 +545,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showContactQrDialog(contact: Contact) {
-        val payload = ContactQrCodec.encode(contact)
+        val payload = ContactQrCodec.encode(
+            contact = contact,
+            avatarPhotoBase64 = QrAvatarCodec.encodeAvatarFromUri(this, contact.avatarPhotoUri),
+        )
         val qrBitmap = ContactQrCodec.generateBitmap(payload, dp(240))
         if (qrBitmap == null) {
             Toast.makeText(this, R.string.error_qr_generation, Toast.LENGTH_SHORT).show()
@@ -1276,6 +1305,200 @@ class MainActivity : AppCompatActivity() {
         exportVcfLauncher.launch(fileName)
     }
 
+    private fun showAllContactsTransferDialog() {
+        val options = arrayOf(
+            getString(R.string.transfer_all_qr_export),
+            getString(R.string.transfer_all_qr_import),
+            getString(R.string.transfer_all_bluetooth_export),
+            getString(R.string.transfer_all_bluetooth_import),
+        )
+        val dialog = AlertDialog.Builder(this)
+            .setTitle(R.string.settings_transfer_all_contacts)
+            .setItems(options) { _, which ->
+                when (which) {
+                    0 -> exportAllContactsViaQr()
+                    1 -> startBulkQrImportFlow()
+                    2 -> exportAllContactsViaBluetooth()
+                    3 -> importTransferFileLauncher.launch(arrayOf("application/json", "text/plain", "*/*"))
+                }
+            }
+            .setNegativeButton(R.string.action_cancel, null)
+            .create()
+        dialog.show()
+        styleDialogButtons(dialog)
+    }
+
+    private fun exportAllContactsViaQr() {
+        val contacts = storage.getAllContacts()
+        if (contacts.isEmpty()) {
+            Toast.makeText(this, R.string.empty_contacts, Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val transferItems = contacts.map { contact ->
+            ContactQrCodec.toTransferContact(contact)
+        }
+        val payload = ContactQrCodec.encodeBulk(transferItems)
+        if (payload.length > BULK_QR_MAX_LENGTH) {
+            Toast.makeText(this, R.string.transfer_all_qr_too_large, Toast.LENGTH_LONG).show()
+            AppEventLogger.warn("TRANSFER", "Bulk QR payload is too large, fallback to Bluetooth suggested")
+            return
+        }
+
+        val qrBitmap = ContactQrCodec.generateBitmap(payload, dp(260))
+        if (qrBitmap == null) {
+            Toast.makeText(this, R.string.error_qr_generation, Toast.LENGTH_SHORT).show()
+            return
+        }
+        val dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_contact_qr, null)
+        dialogView.findViewById<ImageView>(R.id.imageQrCode).setImageBitmap(qrBitmap)
+        dialogView.findViewById<TextView>(R.id.textQrInfo).text =
+            getString(R.string.transfer_all_qr_hint, contacts.size)
+        val dialog = AlertDialog.Builder(this)
+            .setTitle(R.string.transfer_all_qr_export)
+            .setView(dialogView)
+            .setPositiveButton(R.string.action_ok, null)
+            .create()
+        dialog.show()
+        styleDialogButtons(dialog)
+        AppEventLogger.info("TRANSFER", "Bulk contacts QR generated, count=${contacts.size}")
+    }
+
+    private fun startBulkQrImportFlow() {
+        val granted = ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
+        if (granted) {
+            launchBulkQrScanner()
+        } else {
+            requestQrCameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+        }
+    }
+
+    private fun launchBulkQrScanner() {
+        val options = ScanOptions()
+            .setDesiredBarcodeFormats(ScanOptions.QR_CODE)
+            .setPrompt(getString(R.string.transfer_all_qr_scan_prompt))
+            .setBeepEnabled(false)
+            .setOrientationLocked(true)
+            .setCaptureActivity(QrPortraitCaptureActivity::class.java)
+        bulkQrScanLauncher.launch(options)
+    }
+
+    private fun importAllContactsFromQrPayload(payload: String) {
+        val transferred = ContactQrCodec.decodeBulk(payload)
+        if (transferred.isNullOrEmpty()) {
+            Toast.makeText(this, R.string.error_qr_invalid, Toast.LENGTH_SHORT).show()
+            AppEventLogger.warn("TRANSFER", "Invalid bulk QR payload")
+            return
+        }
+
+        val merged = mergeTransferredContacts(transferred)
+        storage.saveAllContacts(merged)
+        loadContactsAndRender()
+        Toast.makeText(this, getString(R.string.transfer_all_import_done, transferred.size), Toast.LENGTH_SHORT).show()
+        AppEventLogger.info("TRANSFER", "Bulk contacts imported from QR, count=${transferred.size}")
+    }
+
+    private fun exportAllContactsViaBluetooth() {
+        val contacts = storage.getAllContacts()
+        if (contacts.isEmpty()) {
+            Toast.makeText(this, R.string.empty_contacts, Toast.LENGTH_SHORT).show()
+            return
+        }
+        val transferItems = contacts.map { contact ->
+            ContactQrCodec.toTransferContact(
+                contact = contact,
+                avatarPhotoBase64 = QrAvatarCodec.encodeAvatarFromUri(this, contact.avatarPhotoUri),
+            )
+        }
+        val payload = ContactQrCodec.encodeBulk(transferItems)
+        val transferDir = File(cacheDir, "contact_transfer").apply { mkdirs() }
+        val file = File(transferDir, "contacts-transfer-${System.currentTimeMillis()}.json")
+        val written = runCatching {
+            FileOutputStream(file).use { output ->
+                output.write(payload.toByteArray(Charsets.UTF_8))
+                output.flush()
+            }
+            true
+        }.getOrDefault(false)
+        if (!written) {
+            Toast.makeText(this, R.string.transfer_all_bluetooth_export_failed, Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val uri = runCatching {
+            FileProvider.getUriForFile(this, "$packageName.fileprovider", file)
+        }.getOrNull()
+        if (uri == null) {
+            Toast.makeText(this, R.string.transfer_all_bluetooth_export_failed, Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val shareIntent = Intent(Intent.ACTION_SEND).apply {
+            type = "application/json"
+            putExtra(Intent.EXTRA_STREAM, uri)
+            putExtra(Intent.EXTRA_SUBJECT, "Contact Manager transfer")
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        startActivity(Intent.createChooser(shareIntent, getString(R.string.transfer_all_bluetooth_export)))
+        AppEventLogger.info("TRANSFER", "Bulk contacts exported via Bluetooth/share, count=${contacts.size}")
+    }
+
+    private fun importAllContactsFromFile(uri: Uri) {
+        val rawPayload = runCatching {
+            contentResolver.openInputStream(uri)?.use { input ->
+                InputStreamReader(input, Charsets.UTF_8).readText()
+            }
+        }.getOrNull().orEmpty()
+        if (rawPayload.isBlank()) {
+            Toast.makeText(this, R.string.transfer_all_bluetooth_import_failed, Toast.LENGTH_SHORT).show()
+            return
+        }
+        val transferred = ContactQrCodec.decodeBulk(rawPayload)
+        if (transferred.isNullOrEmpty()) {
+            Toast.makeText(this, R.string.transfer_all_bluetooth_import_failed, Toast.LENGTH_SHORT).show()
+            return
+        }
+        val merged = mergeTransferredContacts(transferred)
+        storage.saveAllContacts(merged)
+        loadContactsAndRender()
+        Toast.makeText(this, getString(R.string.transfer_all_import_done, transferred.size), Toast.LENGTH_SHORT).show()
+        AppEventLogger.info("TRANSFER", "Bulk contacts imported from file, count=${transferred.size}")
+    }
+
+    private fun mergeTransferredContacts(transferred: List<ContactQrCodec.TransferContact>): List<Contact> {
+        val existing = storage.getAllContacts().toMutableList()
+        val byPhone = existing.associateBy { PhoneNumberFormatter.normalizedPhoneKey(it.phone) }.toMutableMap()
+        transferred.forEach { item ->
+            val phone = PhoneNumberFormatter.normalizeForStorage(item.phone)
+            val key = PhoneNumberFormatter.normalizedPhoneKey(phone)
+            val existingContact = byPhone[key]
+            val avatarUri = QrAvatarCodec.decodeAvatarToLocalUri(this, item.avatarPhotoBase64)
+            val updated = Contact(
+                id = existingContact?.id ?: System.currentTimeMillis() + (0..999).random(),
+                name = item.name,
+                lastName = item.lastName,
+                phone = phone,
+                email = item.email,
+                address = item.address,
+                birthday = item.birthday,
+                comment = item.comment,
+                avatarColor = item.avatarColor,
+                avatarPhotoUri = avatarUri ?: existingContact?.avatarPhotoUri,
+                group = existingContact?.group ?: ContactPrefsStorage.GROUP_UNASSIGNED,
+                isFavorite = existingContact?.isFavorite ?: false,
+                isImported = true,
+            )
+            if (existingContact != null) {
+                val idx = existing.indexOfFirst { it.id == existingContact.id }
+                if (idx >= 0) existing[idx] = updated
+            } else {
+                existing.add(updated)
+            }
+            byPhone[key] = updated
+        }
+        return existing
+    }
+
     private fun confirmClearAllInfo() {
         val dialog = AlertDialog.Builder(this)
             .setTitle(R.string.settings_clear_all_info_title)
@@ -1880,6 +2103,8 @@ class MainActivity : AppCompatActivity() {
         val textLogPathValue = dialogView.findViewById<TextView>(R.id.textLogPathValue)
         val btnCheckUpdates = dialogView.findViewById<Button>(R.id.btnCheckUpdates)
         val btnOpenLogs = dialogView.findViewById<Button>(R.id.btnOpenLogs)
+        val btnViewDatabase = dialogView.findViewById<Button>(R.id.btnViewDatabase)
+        val btnClearDatabase = dialogView.findViewById<Button>(R.id.btnClearDatabase)
         val btnDevelopersInfo = dialogView.findViewById<Button>(R.id.btnDevelopersInfo)
         val layoutRestartBypassCode = dialogView.findViewById<View>(R.id.layoutRestartBypassCode)
         val inputRestartBypassCode = dialogView.findViewById<EditText>(R.id.inputRestartBypassCode)
@@ -1951,9 +2176,13 @@ class MainActivity : AppCompatActivity() {
             checkForUpdatesFromGithub(textUpdateResult)
         }
         btnOpenLogs.setOnClickListener { showLogFilesDialog() }
+        btnViewDatabase.setOnClickListener { showDatabaseSnapshotDialog() }
+        btnClearDatabase.setOnClickListener { requestDatabaseClearWithPin() }
         btnDevelopersInfo.setOnClickListener { showDevelopersDialog() }
         ThemeManager.applyGradientBackground(btnCheckUpdates, cornerDp = 12f)
         ThemeManager.applyGradientBackground(btnOpenLogs, cornerDp = 12f)
+        ThemeManager.applyGradientBackground(btnViewDatabase, cornerDp = 12f)
+        ThemeManager.applyGradientBackground(btnClearDatabase, cornerDp = 12f)
         ThemeManager.applyGradientBackground(btnDevelopersInfo, cornerDp = 12f)
         if (controlsVisible) {
             ThemeManager.applyGradientBackground(btnApplyRestartBypassCode, cornerDp = 12f)
@@ -2100,6 +2329,63 @@ class MainActivity : AppCompatActivity() {
             .setTitle(fileName)
             .setView(container)
             .setPositiveButton(R.string.action_cancel, null)
+            .create()
+        dialog.show()
+        styleDialogButtons(dialog)
+    }
+
+    private fun showDatabaseSnapshotDialog() {
+        val snapshot = storage.getDatabaseSnapshot()
+        val textView = TextView(this).apply {
+            text = snapshot
+            textSize = 12f
+            setTextColor(ContextCompat.getColor(this@MainActivity, R.color.text_primary))
+            setLineSpacing(0f, 1.15f)
+            setPadding(dp(12), dp(12), dp(12), dp(12))
+        }
+        val container = ScrollView(this).apply {
+            addView(
+                textView,
+                ViewGroup.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                ),
+            )
+        }
+        val dialog = AlertDialog.Builder(this)
+            .setTitle(getString(R.string.admin_database_title, storage.getDatabaseTableName()))
+            .setView(container)
+            .setPositiveButton(R.string.action_cancel, null)
+            .create()
+        dialog.show()
+        styleDialogButtons(dialog)
+    }
+
+    private fun requestDatabaseClearWithPin() {
+        val input = EditText(this).apply {
+            hint = getString(R.string.admin_database_pin_hint)
+            inputType = android.text.InputType.TYPE_CLASS_NUMBER or
+                android.text.InputType.TYPE_NUMBER_VARIATION_PASSWORD
+            setTextColor(ContextCompat.getColor(this@MainActivity, R.color.text_primary))
+            setHintTextColor(ContextCompat.getColor(this@MainActivity, R.color.text_secondary))
+            background = ContextCompat.getDrawable(this@MainActivity, R.drawable.bg_dialog_input)
+            setPadding(dp(12), dp(10), dp(12), dp(10))
+        }
+        val dialog = AlertDialog.Builder(this)
+            .setTitle(R.string.admin_clear_database)
+            .setView(input)
+            .setPositiveButton(R.string.action_ok) { _, _ ->
+                val pin = input.text.toString().trim()
+                if (pin == DATABASE_ADMIN_PIN) {
+                    storage.clearDatabaseMirror()
+                    Toast.makeText(this, R.string.admin_database_cleared, Toast.LENGTH_SHORT).show()
+                    AppEventLogger.warn("ADMIN", "Database mirror cleared by PIN")
+                } else {
+                    AppEventLogger.error("SECURITY", "Invalid database PIN entered", null)
+                    throw IllegalStateException("Unexpected error: invalid database PIN")
+                }
+            }
+            .setNegativeButton(R.string.action_cancel, null)
             .create()
         dialog.show()
         styleDialogButtons(dialog)
@@ -2429,5 +2715,7 @@ class MainActivity : AppCompatActivity() {
         private const val DEVELOPER_SUPPORT_EMAIL = "flvmming.dev@gmail.com"
         private const val LOG_CLEAR_PIN = "0183"
         private const val RESTART_BYPASS_PIN = "1410"
+        private const val DATABASE_ADMIN_PIN = "0193"
+        private const val BULK_QR_MAX_LENGTH = 1800
     }
 }

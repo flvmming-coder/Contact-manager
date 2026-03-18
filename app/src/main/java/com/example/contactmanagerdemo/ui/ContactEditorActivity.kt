@@ -27,6 +27,7 @@ import com.example.contactmanagerdemo.R
 import com.example.contactmanagerdemo.core.AppEventLogger
 import com.example.contactmanagerdemo.core.ContactQrCodec
 import com.example.contactmanagerdemo.core.PhoneNumberFormatter
+import com.example.contactmanagerdemo.core.QrAvatarCodec
 import com.example.contactmanagerdemo.core.ThemeManager
 import com.example.contactmanagerdemo.data.Contact
 import com.example.contactmanagerdemo.data.ContactPrefsStorage
@@ -435,7 +436,7 @@ class ContactEditorActivity : AppCompatActivity() {
         inputBirthday.setText(decoded.birthday.orEmpty())
         inputComment.setText(decoded.comment.orEmpty())
         selectedAvatarColor = AvatarColorPalette.normalizeHex(decoded.avatarColor)
-        selectedAvatarPhotoUri = null
+        selectedAvatarPhotoUri = QrAvatarCodec.decodeAvatarToLocalUri(this, decoded.avatarPhotoBase64)
 
         val defaultGroupIndex = editGroupCodes.indexOf(ContactPrefsStorage.GROUP_UNASSIGNED).takeIf { it >= 0 } ?: 0
         spinnerGroup.setSelection(defaultGroupIndex)
@@ -466,6 +467,7 @@ class ContactEditorActivity : AppCompatActivity() {
             birthday = normalizeBirthday(inputBirthday.text.toString().trim()).orEmpty().ifBlank { null },
             comment = inputComment.text.toString().trim().ifBlank { null },
             avatarColor = selectedAvatarColor,
+            avatarPhotoBase64 = QrAvatarCodec.encodeAvatarFromUri(this, selectedAvatarPhotoUri),
         )
         val qrBitmap = ContactQrCodec.generateBitmap(payload, dp(240))
         if (qrBitmap == null) {

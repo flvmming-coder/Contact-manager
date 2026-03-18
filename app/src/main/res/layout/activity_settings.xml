@@ -58,6 +58,14 @@
             android:text="@string/settings_export_vcf" />
 
         <Button
+            android:id="@+id/btnSettingsTransferAll"
+            style="@style/Widget.ContactManager.GradientButton.Small"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="@string/settings_transfer_all_contacts" />
+
+        <Button
             android:id="@+id/btnSettingsTheme"
             style="@style/Widget.ContactManager.GradientButton.Small"
             android:layout_width="match_parent"

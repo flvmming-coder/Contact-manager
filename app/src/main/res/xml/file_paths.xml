@@ -9,4 +9,7 @@
     <files-path
         name="internal_logs"
         path="ContactManagerLogs/" />
+    <cache-path
+        name="transfer_cache"
+        path="contact_transfer/" />
 </paths>

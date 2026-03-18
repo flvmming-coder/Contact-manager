@@ -1,4 +1,4 @@
-﻿# Contact Manager v0.19.2 (PRE-RELEASE)
+﻿# Contact Manager v0.19.2 (RELEASE)
 
 Причина обновления:
 - в 0.19.1 при QR-переносе кириллица могла повреждаться (вместо русских символов отображались `?`).
@@ -28,3 +28,4 @@
 
 APK:
 - ContactManager-v0.19.2-debug.apk
+
