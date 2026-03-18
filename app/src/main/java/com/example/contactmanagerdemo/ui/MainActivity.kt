@@ -59,6 +59,7 @@ import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.google.android.gms.common.api.ApiException
 import com.example.contactmanagerdemo.R
 import com.example.contactmanagerdemo.core.AppEventLogger
+import com.example.contactmanagerdemo.core.ContactQrCodec
 import com.example.contactmanagerdemo.core.DevSecurityManager
 import com.example.contactmanagerdemo.core.PhoneNumberFormatter
 import com.example.contactmanagerdemo.core.ThemeManager
@@ -240,6 +241,7 @@ class MainActivity : AppCompatActivity() {
                 onSelectStarted = { contact -> beginSelectionMode(contact) },
                 onSelectionToggle = { contact -> toggleContactSelection(contact) },
                 onFavoriteToggle = { contact -> toggleFavoriteContact(contact) },
+                onQrTransfer = { contact -> showContactQrDialog(contact) },
                 isSelectionMode = { isSelectionModeActive() },
             )
             recyclerView.adapter = adapter
@@ -514,6 +516,31 @@ class MainActivity : AppCompatActivity() {
         AppEventLogger.info("DATA", "Favorite toggled for id=${contact.id}; favorite=$targetFavorite")
         setupFilterGroups()
         loadContactsAndRender()
+    }
+
+    private fun showContactQrDialog(contact: Contact) {
+        val payload = ContactQrCodec.encode(contact)
+        val qrBitmap = ContactQrCodec.generateBitmap(payload, dp(240))
+        if (qrBitmap == null) {
+            Toast.makeText(this, R.string.error_qr_generation, Toast.LENGTH_SHORT).show()
+            AppEventLogger.warn("QR", "Failed to generate QR for id=${contact.id}")
+            return
+        }
+
+        val dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_contact_qr, null)
+        dialogView.findViewById<ImageView>(R.id.imageQrCode).setImageBitmap(qrBitmap)
+        val title = listOfNotNull(contact.name, contact.lastName).joinToString(" ").ifBlank { contact.phone }
+        dialogView.findViewById<TextView>(R.id.textQrInfo).text =
+            getString(R.string.message_contact_qr, title)
+
+        val dialog = AlertDialog.Builder(this)
+            .setTitle(R.string.title_contact_qr)
+            .setView(dialogView)
+            .setPositiveButton(R.string.action_ok, null)
+            .create()
+        dialog.show()
+        styleDialogButtons(dialog)
+        AppEventLogger.info("QR", "Contact QR displayed for id=${contact.id}")
     }
 
     private fun showBulkAssignGroupDialog() {
@@ -917,6 +944,7 @@ class MainActivity : AppCompatActivity() {
         if (normalizedUri.isNotEmpty()) {
             val shown = runCatching {
                 imageAvatarPreview.setImageURI(Uri.parse(normalizedUri))
+                ThemeManager.applyColorVisionFilter(imageAvatarPreview, this)
                 true
             }.getOrElse { false }
             if (shown) {
@@ -927,6 +955,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         imageAvatarPreview.visibility = View.GONE
+        imageAvatarPreview.colorFilter = null
         textAvatarPreview.visibility = View.VISIBLE
         textAvatarPreview.text = buildInitials(name, lastName)
         textAvatarPreview.background = GradientDrawable().apply {

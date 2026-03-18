@@ -1,8 +1,10 @@
 package com.example.contactmanagerdemo.ui
 
+import android.Manifest
 import android.app.DatePickerDialog
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Bundle
 import android.text.Editable
@@ -23,10 +25,13 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import com.example.contactmanagerdemo.R
 import com.example.contactmanagerdemo.core.AppEventLogger
+import com.example.contactmanagerdemo.core.ContactQrCodec
 import com.example.contactmanagerdemo.core.PhoneNumberFormatter
 import com.example.contactmanagerdemo.core.ThemeManager
 import com.example.contactmanagerdemo.data.Contact
 import com.example.contactmanagerdemo.data.ContactPrefsStorage
+import com.journeyapps.barcodescanner.ScanContract
+import com.journeyapps.barcodescanner.ScanOptions
 import org.json.JSONObject
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -58,6 +63,8 @@ class ContactEditorActivity : AppCompatActivity() {
     private lateinit var btnPickBirthday: Button
     private lateinit var btnPickAvatarPhoto: Button
     private lateinit var btnClearAvatarPhoto: Button
+    private lateinit var btnScanQr: Button
+    private lateinit var btnGenerateQr: Button
     private var readOnlyMode: Boolean = false
     private val devPrefs by lazy { getSharedPreferences(DEV_PREFS_NAME, MODE_PRIVATE) }
 
@@ -72,6 +79,23 @@ class ContactEditorActivity : AppCompatActivity() {
             }
             selectedAvatarPhotoUri = uri.toString()
             updateAvatarPreview()
+        }
+
+    private val requestCameraPermissionLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            if (granted) {
+                launchQrScanner()
+            } else {
+                Toast.makeText(this, R.string.qr_camera_permission_required, Toast.LENGTH_SHORT).show()
+                AppEventLogger.warn("QR", "Camera permission denied in editor")
+            }
+        }
+
+    private val qrScanLauncher =
+        registerForActivityResult(ScanContract()) { result ->
+            val payload = result.contents.orEmpty()
+            if (payload.isBlank()) return@registerForActivityResult
+            applyScannedQrPayload(payload)
         }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -166,6 +190,14 @@ class ContactEditorActivity : AppCompatActivity() {
                 updateAvatarPreview()
             }
         }
+        btnScanQr = findViewById<Button>(R.id.btnScanQr).also {
+            it.visibility = if (readOnlyMode) View.GONE else View.VISIBLE
+            it.setOnClickListener { startQrScanFlow() }
+        }
+        btnGenerateQr = findViewById<Button>(R.id.btnGenerateQr).also {
+            it.visibility = if (!readOnlyMode && editingContact != null) View.VISIBLE else View.GONE
+            it.setOnClickListener { showCurrentContactQr() }
+        }
         findViewById<View>(R.id.layoutAvatarColorRow).visibility = View.GONE
 
         setupPhoneInputMask()
@@ -181,6 +213,7 @@ class ContactEditorActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         applyAccentUi()
+        updateAvatarPreview()
     }
 
     private fun fillExistingData() {
@@ -209,6 +242,8 @@ class ContactEditorActivity : AppCompatActivity() {
         ThemeManager.applyGradientBackground(btnPickBirthday, cornerDp = 12f)
         ThemeManager.applyGradientBackground(btnPickAvatarPhoto, cornerDp = 12f)
         ThemeManager.applyGradientBackground(btnClearAvatarPhoto, cornerDp = 12f)
+        ThemeManager.applyGradientBackground(btnScanQr, cornerDp = 12f)
+        ThemeManager.applyGradientBackground(btnGenerateQr, cornerDp = 12f)
     }
 
     private fun enableReadOnlyState() {
@@ -233,6 +268,8 @@ class ContactEditorActivity : AppCompatActivity() {
         btnPickBirthday.visibility = View.GONE
         btnPickAvatarPhoto.visibility = View.GONE
         btnClearAvatarPhoto.visibility = View.GONE
+        btnScanQr.visibility = View.GONE
+        btnGenerateQr.visibility = View.GONE
     }
 
     private fun saveContact() {
@@ -341,6 +378,7 @@ class ContactEditorActivity : AppCompatActivity() {
         if (uri.isNotBlank()) {
             val shown = runCatching {
                 imageAvatarPreview.setImageURI(Uri.parse(uri))
+                ThemeManager.applyColorVisionFilter(imageAvatarPreview, this)
                 true
             }.getOrDefault(false)
             if (shown) {
@@ -351,6 +389,7 @@ class ContactEditorActivity : AppCompatActivity() {
         }
 
         imageAvatarPreview.visibility = View.GONE
+        imageAvatarPreview.colorFilter = null
         textAvatarPreview.visibility = View.VISIBLE
         textAvatarPreview.text = buildInitials(inputName.text.toString(), inputLastName.text.toString())
         val colorInt = AvatarColorPalette.resolveColorInt(selectedAvatarColor, avatarSeed)
@@ -359,6 +398,95 @@ class ContactEditorActivity : AppCompatActivity() {
             cornerRadius = 14f * resources.displayMetrics.density
             setColor(colorInt)
         }
+    }
+
+    private fun startQrScanFlow() {
+        val granted = ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
+        if (granted) {
+            launchQrScanner()
+        } else {
+            requestCameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+        }
+    }
+
+    private fun launchQrScanner() {
+        val options = ScanOptions()
+            .setDesiredBarcodeFormats(ScanOptions.QR_CODE)
+            .setPrompt(getString(R.string.qr_scan_prompt))
+            .setBeepEnabled(false)
+            .setOrientationLocked(false)
+        qrScanLauncher.launch(options)
+    }
+
+    private fun applyScannedQrPayload(rawPayload: String) {
+        val decoded = ContactQrCodec.decode(rawPayload)
+        if (decoded == null) {
+            Toast.makeText(this, R.string.error_qr_invalid, Toast.LENGTH_SHORT).show()
+            AppEventLogger.warn("QR", "Invalid QR payload scanned in editor")
+            return
+        }
+
+        inputName.setText(decoded.name)
+        inputLastName.setText(decoded.lastName.orEmpty())
+        inputPhone.setText(PhoneNumberFormatter.normalizeForStorage(decoded.phone))
+        inputEmail.setText(decoded.email.orEmpty())
+        inputAddress.setText(decoded.address.orEmpty())
+        inputBirthday.setText(decoded.birthday.orEmpty())
+        inputComment.setText(decoded.comment.orEmpty())
+        selectedAvatarColor = AvatarColorPalette.normalizeHex(decoded.avatarColor)
+        selectedAvatarPhotoUri = null
+
+        val defaultGroupIndex = editGroupCodes.indexOf(ContactPrefsStorage.GROUP_UNASSIGNED).takeIf { it >= 0 } ?: 0
+        spinnerGroup.setSelection(defaultGroupIndex)
+        updateAvatarPreview()
+
+        Toast.makeText(this, R.string.qr_contact_prefilled, Toast.LENGTH_SHORT).show()
+        AppEventLogger.info("QR", "QR payload applied in contact editor")
+    }
+
+    private fun showCurrentContactQr() {
+        val name = inputName.text.toString().trim()
+        val phone = PhoneNumberFormatter.normalizeForStorage(inputPhone.text.toString().trim())
+        if (name.isBlank()) {
+            inputName.error = getString(R.string.error_required)
+            return
+        }
+        if (phone.isBlank() || (phone.startsWith("+7") && phone.filter { it.isDigit() }.length <= 1)) {
+            inputPhone.error = getString(R.string.error_required)
+            return
+        }
+
+        val payload = ContactQrCodec.encode(
+            name = name,
+            lastName = inputLastName.text.toString().trim().ifBlank { null },
+            phone = phone,
+            email = inputEmail.text.toString().trim().ifBlank { null },
+            address = inputAddress.text.toString().trim().ifBlank { null },
+            birthday = normalizeBirthday(inputBirthday.text.toString().trim()).orEmpty().ifBlank { null },
+            comment = inputComment.text.toString().trim().ifBlank { null },
+            avatarColor = selectedAvatarColor,
+        )
+        val qrBitmap = ContactQrCodec.generateBitmap(payload, dp(240))
+        if (qrBitmap == null) {
+            Toast.makeText(this, R.string.error_qr_generation, Toast.LENGTH_SHORT).show()
+            AppEventLogger.warn("QR", "Failed to generate QR in editor")
+            return
+        }
+
+        val dialogView = layoutInflater.inflate(R.layout.dialog_contact_qr, null)
+        dialogView.findViewById<ImageView>(R.id.imageQrCode).setImageBitmap(qrBitmap)
+        val displayName = listOfNotNull(name, inputLastName.text.toString().trim().ifBlank { null }).joinToString(" ")
+        dialogView.findViewById<TextView>(R.id.textQrInfo).text =
+            getString(R.string.message_contact_qr, displayName.ifBlank { phone })
+
+        val dialog = AlertDialog.Builder(this)
+            .setTitle(R.string.title_contact_qr)
+            .setView(dialogView)
+            .setPositiveButton(R.string.action_ok, null)
+            .create()
+        dialog.show()
+        styleDialogButtons(dialog)
+        AppEventLogger.info("QR", "Contact QR displayed from editor")
     }
 
     private fun buildInitials(name: String, lastName: String?): String {

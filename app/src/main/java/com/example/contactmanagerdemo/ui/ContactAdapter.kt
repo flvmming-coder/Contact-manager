@@ -1,8 +1,9 @@
-package com.example.contactmanagerdemo.ui
+﻿package com.example.contactmanagerdemo.ui
 
-import android.graphics.drawable.GradientDrawable
+import android.content.res.ColorStateList
 import android.content.res.Configuration
 import android.graphics.Color
+import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.SystemClock
 import android.view.LayoutInflater
@@ -10,11 +11,13 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.ViewConfiguration
 import android.view.ViewGroup
+import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.TextView
 import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.RecyclerView
 import com.example.contactmanagerdemo.R
+import com.example.contactmanagerdemo.core.ThemeManager
 import com.example.contactmanagerdemo.data.Contact
 import java.util.Locale
 
@@ -23,6 +26,7 @@ class ContactAdapter(
     private val onSelectStarted: (Contact) -> Unit,
     private val onSelectionToggle: (Contact) -> Unit,
     private val onFavoriteToggle: (Contact) -> Unit,
+    private val onQrTransfer: (Contact) -> Unit,
     private val isSelectionMode: () -> Boolean,
 ) : RecyclerView.Adapter<ContactAdapter.ContactViewHolder>() {
 
@@ -61,7 +65,8 @@ class ContactAdapter(
         private val textAvatar: TextView = itemView.findViewById(R.id.textAvatar)
         private val textName: TextView = itemView.findViewById(R.id.textName)
         private val textPhone: TextView = itemView.findViewById(R.id.textPhone)
-        private val textFavorite: TextView = itemView.findViewById(R.id.textFavorite)
+        private val btnFavorite: ImageButton = itemView.findViewById(R.id.btnFavorite)
+        private val btnQrTransfer: ImageButton = itemView.findViewById(R.id.btnQrTransfer)
 
         fun bind(contact: Contact, position: Int) {
             textName.text = listOfNotNull(contact.name, contact.lastName).joinToString(" ")
@@ -69,7 +74,8 @@ class ContactAdapter(
             bindSectionHeader(contact, position)
 
             bindAvatar(contact)
-            bindFavoriteMarker(contact)
+            bindFavoriteButton(contact)
+            bindQrTransferButton(contact)
             applySelectionStyle(selectedIds.contains(contact.id))
 
             root.setOnLongClickListener {
@@ -132,24 +138,41 @@ class ContactAdapter(
             }
         }
 
-        private fun bindFavoriteMarker(contact: Contact) {
+        private fun bindFavoriteButton(contact: Contact) {
             val active = contact.isFavorite
             val markerColor = when {
                 active -> 0xFFBE123C.toInt()
                 isDarkTheme() -> 0xFFA3A5BD.toInt()
                 else -> 0xFF334155.toInt()
             }
+            styleIconButton(btnFavorite, markerColor)
+            btnFavorite.setOnClickListener {
+                if (isSelectionMode()) return@setOnClickListener
+                onFavoriteToggle(contact)
+            }
+        }
+
+        private fun bindQrTransferButton(contact: Contact) {
+            val accent = ThemeManager.getAccentGradient(itemView.context).second
+            styleIconButton(btnQrTransfer, accent)
+            btnQrTransfer.setOnClickListener {
+                if (isSelectionMode()) return@setOnClickListener
+                onQrTransfer(contact)
+            }
+        }
+
+        private fun styleIconButton(button: ImageButton, color: Int) {
             val density = itemView.resources.displayMetrics.density
-            textFavorite.background = GradientDrawable().apply {
+            button.background = GradientDrawable().apply {
                 shape = GradientDrawable.RECTANGLE
                 cornerRadius = 7f * density
                 setColor(Color.TRANSPARENT)
-                setStroke((2f * density).toInt(), markerColor)
+                setStroke((2f * density).toInt(), color)
             }
-            textFavorite.setTextColor(markerColor)
-            textFavorite.setOnClickListener {
-                onFavoriteToggle(contact)
-            }
+            button.imageTintList = ColorStateList.valueOf(color)
+            val enabled = !isSelectionMode()
+            button.isEnabled = enabled
+            button.alpha = if (enabled) 1f else 0.45f
         }
 
         private var pendingLongPress: Runnable? = null
@@ -180,6 +203,7 @@ class ContactAdapter(
             if (avatarUri.isNotEmpty()) {
                 val shown = runCatching {
                     imageAvatar.setImageURI(Uri.parse(avatarUri))
+                    ThemeManager.applyColorVisionFilter(imageAvatar, itemView.context)
                     true
                 }.getOrElse { false }
                 if (shown) {
@@ -190,6 +214,7 @@ class ContactAdapter(
             }
 
             imageAvatar.visibility = View.GONE
+            imageAvatar.colorFilter = null
             textAvatar.visibility = View.VISIBLE
             textAvatar.text = buildInitials(contact)
             textAvatar.background = GradientDrawable().apply {

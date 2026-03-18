@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
@@ -95,17 +95,34 @@
             </LinearLayout>
         </LinearLayout>
 
-        <TextView
-            android:id="@+id/textFavorite"
-            android:layout_width="27dp"
-            android:layout_height="27dp"
-            android:layout_gravity="center_vertical"
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
             android:layout_marginStart="6dp"
-            android:gravity="center"
-            android:text="♥"
-            android:textColor="@color/text_secondary"
-            android:textSize="14sp"
-            android:textStyle="bold" />
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <ImageButton
+                android:id="@+id/btnFavorite"
+                android:layout_width="27dp"
+                android:layout_height="27dp"
+                android:background="@android:color/transparent"
+                android:contentDescription="@string/group_favorites"
+                android:padding="5dp"
+                app:srcCompat="@drawable/ic_heart_regular"
+                app:tint="@color/text_secondary" />
+
+            <ImageButton
+                android:id="@+id/btnQrTransfer"
+                android:layout_width="27dp"
+                android:layout_height="27dp"
+                android:layout_marginStart="4dp"
+                android:background="@android:color/transparent"
+                android:contentDescription="@string/action_generate_qr"
+                android:padding="5dp"
+                app:srcCompat="@drawable/ic_qrcode"
+                app:tint="@color/text_secondary" />
+        </LinearLayout>
     </LinearLayout>
 
 </LinearLayout>

@@ -2,8 +2,11 @@ package com.example.contactmanagerdemo.core
 
 import android.content.Context
 import android.graphics.Color
+import android.graphics.ColorMatrix
+import android.graphics.ColorMatrixColorFilter
 import android.graphics.drawable.GradientDrawable
 import android.view.View
+import android.widget.ImageView
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.content.ContextCompat
@@ -126,6 +129,47 @@ object ThemeManager {
         if (view is TextView) {
             view.setTextColor(resolveReadableTextColor(start, end))
         }
+    }
+
+    fun applyColorVisionFilter(imageView: ImageView, context: Context) {
+        val mode = getColorVisionMode(context)
+        val filter = when (mode) {
+            ColorVisionMode.NORMAL -> null
+            ColorVisionMode.DEUTERANOMALY -> ColorMatrixColorFilter(
+                ColorMatrix(
+                    floatArrayOf(
+                        0.80f, 0.20f, 0.00f, 0f, 0f,
+                        0.258f, 0.742f, 0.00f, 0f, 0f,
+                        0.00f, 0.142f, 0.858f, 0f, 0f,
+                        0.00f, 0.00f, 0.00f, 1f, 0f,
+                    ),
+                ),
+            )
+            ColorVisionMode.PROTANOMALY -> ColorMatrixColorFilter(
+                ColorMatrix(
+                    floatArrayOf(
+                        0.817f, 0.183f, 0.00f, 0f, 0f,
+                        0.333f, 0.667f, 0.00f, 0f, 0f,
+                        0.00f, 0.125f, 0.875f, 0f, 0f,
+                        0.00f, 0.00f, 0.00f, 1f, 0f,
+                    ),
+                ),
+            )
+            ColorVisionMode.TRITANOMALY -> ColorMatrixColorFilter(
+                ColorMatrix(
+                    floatArrayOf(
+                        0.967f, 0.033f, 0.00f, 0f, 0f,
+                        0.00f, 0.733f, 0.267f, 0f, 0f,
+                        0.00f, 0.183f, 0.817f, 0f, 0f,
+                        0.00f, 0.00f, 0.00f, 1f, 0f,
+                    ),
+                ),
+            )
+            ColorVisionMode.MONOCHROME -> ColorMatrixColorFilter(
+                ColorMatrix().apply { setSaturation(0f) },
+            )
+        }
+        imageView.colorFilter = filter
     }
 
     private fun resolveReadableTextColor(start: Int, end: Int): Int {
