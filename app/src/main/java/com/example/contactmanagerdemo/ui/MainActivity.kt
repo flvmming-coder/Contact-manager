@@ -71,8 +71,6 @@ import com.example.contactmanagerdemo.data.Contact
 import com.example.contactmanagerdemo.data.ContactDatabaseMirror
 import com.example.contactmanagerdemo.data.ContactPrefsStorage
 import java.io.File
-import java.io.FileOutputStream
-import java.io.InputStreamReader
 import java.io.OutputStreamWriter
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -110,6 +108,9 @@ class MainActivity : AppCompatActivity() {
     private var isDownloadReceiverRegistered = false
     private var adminHoldTriggered = false
     private var adminPanelActivated = false
+    private var incomingQrSessionId: String? = null
+    private var incomingQrTotalChunks: Int = 0
+    private val incomingQrChunkMap = linkedMapOf<Int, List<ContactQrCodec.TransferContact>>()
     private val devPrefs by lazy { getSharedPreferences(DEV_PREFS_NAME, Context.MODE_PRIVATE) }
     private var pendingAvatarPhotoResult: ((String?) -> Unit)? = null
     private var pendingVcfPayload: String? = null
@@ -192,11 +193,6 @@ class MainActivity : AppCompatActivity() {
             val payload = result.contents.orEmpty()
             if (payload.isBlank()) return@registerForActivityResult
             importAllContactsFromQrPayload(payload)
-        }
-    private val importTransferFileLauncher =
-        registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-            if (uri == null) return@registerForActivityResult
-            importAllContactsFromFile(uri)
         }
     private val googleSignInLauncher =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
@@ -405,9 +401,11 @@ class MainActivity : AppCompatActivity() {
         val labels = options.map { getString(it.labelRes) }
         spinnerSort.adapter = ArrayAdapter(
             this,
-            android.R.layout.simple_spinner_dropdown_item,
+            R.layout.item_sort_spinner_selected,
             labels,
-        )
+        ).apply {
+            setDropDownViewResource(R.layout.item_sort_spinner_dropdown)
+        }
         spinnerSort.setSelection(selectedSortOption.ordinal, false)
         spinnerSort.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
             override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
@@ -1378,19 +1376,15 @@ class MainActivity : AppCompatActivity() {
 
     private fun showAllContactsTransferDialog() {
         val options = arrayOf(
-            getString(R.string.transfer_all_qr_export),
-            getString(R.string.transfer_all_qr_import),
-            getString(R.string.transfer_all_bluetooth_export),
-            getString(R.string.transfer_all_bluetooth_import),
+            getString(R.string.transfer_all_qr_series_export),
+            getString(R.string.transfer_all_qr_series_import),
         )
         val dialog = AlertDialog.Builder(this)
             .setTitle(R.string.settings_transfer_all_contacts)
             .setItems(options) { _, which ->
                 when (which) {
-                    0 -> exportAllContactsViaQr()
+                    0 -> exportAllContactsViaQrSeries()
                     1 -> startBulkQrImportFlow()
-                    2 -> exportAllContactsViaBluetooth()
-                    3 -> importTransferFileLauncher.launch(arrayOf("application/json", "text/plain", "*/*"))
                 }
             }
             .setNegativeButton(R.string.action_cancel, null)
@@ -1399,7 +1393,7 @@ class MainActivity : AppCompatActivity() {
         styleDialogButtons(dialog)
     }
 
-    private fun exportAllContactsViaQr() {
+    private fun exportAllContactsViaQrSeries() {
         val contacts = storage.getAllContacts()
         if (contacts.isEmpty()) {
             Toast.makeText(this, R.string.empty_contacts, Toast.LENGTH_SHORT).show()
@@ -1409,33 +1403,131 @@ class MainActivity : AppCompatActivity() {
         val transferItems = contacts.map { contact ->
             ContactQrCodec.toTransferContact(contact)
         }
-        val payload = ContactQrCodec.encodeBulk(transferItems)
-        if (payload.length > BULK_QR_MAX_LENGTH) {
-            Toast.makeText(this, R.string.transfer_all_qr_too_large, Toast.LENGTH_LONG).show()
-            AppEventLogger.warn("TRANSFER", "Bulk QR payload is too large, fallback to Bluetooth suggested")
+        val sessionId = System.currentTimeMillis().toString(36)
+        val chunkPayloads = buildQrChunkPayloads(sessionId, transferItems)
+        if (chunkPayloads.isEmpty()) {
+            Toast.makeText(this, R.string.transfer_all_qr_series_failed, Toast.LENGTH_LONG).show()
             return
+        }
+        showQrChunkSequenceDialog(chunkPayloads, transferItems.size)
+    }
+
+    private fun buildQrChunkPayloads(
+        sessionId: String,
+        items: List<ContactQrCodec.TransferContact>,
+    ): List<String> {
+        val chunks = mutableListOf<List<ContactQrCodec.TransferContact>>()
+        var cursor = 0
+
+        while (cursor < items.size) {
+            var size = minOf(BULK_QR_CHUNK_CONTACTS, items.size - cursor)
+            var selected: List<ContactQrCodec.TransferContact>? = null
+            while (size >= 1) {
+                val candidate = items.subList(cursor, cursor + size)
+                val probe = ContactQrCodec.encodeBulkChunk(
+                    sessionId = sessionId,
+                    chunkIndex = chunks.size,
+                    totalChunks = 999,
+                    contacts = candidate,
+                )
+                if (probe.length <= BULK_QR_CHUNK_MAX_LENGTH) {
+                    selected = candidate
+                    break
+                }
+                size -= 1
+            }
+            if (selected == null) {
+                val slim = items[cursor].copy(
+                    email = null,
+                    address = null,
+                    birthday = null,
+                    comment = null,
+                    avatarPhotoBase64 = null,
+                )
+                val probe = ContactQrCodec.encodeBulkChunk(
+                    sessionId = sessionId,
+                    chunkIndex = chunks.size,
+                    totalChunks = 999,
+                    contacts = listOf(slim),
+                )
+                if (probe.length > BULK_QR_CHUNK_MAX_LENGTH) {
+                    AppEventLogger.warn("TRANSFER", "Single contact is too large even after slimming for QR")
+                    return emptyList()
+                }
+                selected = listOf(slim)
+            }
+            chunks.add(selected)
+            cursor += selected.size
         }
 
-        val qrBitmap = ContactQrCodec.generateBitmap(payload, dp(260))
-        if (qrBitmap == null) {
-            Toast.makeText(this, R.string.error_qr_generation, Toast.LENGTH_SHORT).show()
-            return
+        val totalChunks = chunks.size
+        return chunks.mapIndexed { index, chunk ->
+            ContactQrCodec.encodeBulkChunk(
+                sessionId = sessionId,
+                chunkIndex = index,
+                totalChunks = totalChunks,
+                contacts = chunk,
+            )
         }
+    }
+
+    private fun showQrChunkSequenceDialog(payloads: List<String>, totalContacts: Int) {
+        var chunkIndex = 0
         val dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_contact_qr, null)
-        dialogView.findViewById<ImageView>(R.id.imageQrCode).setImageBitmap(qrBitmap)
-        dialogView.findViewById<TextView>(R.id.textQrInfo).text =
-            getString(R.string.transfer_all_qr_hint, contacts.size)
+        val qrImage = dialogView.findViewById<ImageView>(R.id.imageQrCode)
+        val info = dialogView.findViewById<TextView>(R.id.textQrInfo)
+
+        fun renderCurrentChunk() {
+            val payload = payloads[chunkIndex]
+            val qrBitmap = ContactQrCodec.generateBitmap(payload, dp(260))
+            if (qrBitmap == null) {
+                Toast.makeText(this, R.string.error_qr_generation, Toast.LENGTH_SHORT).show()
+                return
+            }
+            qrImage.setImageBitmap(qrBitmap)
+            info.text = getString(
+                R.string.transfer_all_qr_series_hint,
+                chunkIndex + 1,
+                payloads.size,
+                totalContacts,
+            )
+        }
+
         val dialog = AlertDialog.Builder(this)
-            .setTitle(R.string.transfer_all_qr_export)
+            .setTitle(R.string.transfer_all_qr_series_export)
             .setView(dialogView)
-            .setPositiveButton(R.string.action_ok, null)
+            .setNegativeButton(R.string.action_previous, null)
+            .setNeutralButton(R.string.action_next, null)
+            .setPositiveButton(R.string.action_done, null)
             .create()
+        dialog.setOnShowListener {
+            val btnPrev = dialog.getButton(AlertDialog.BUTTON_NEGATIVE)
+            val btnNext = dialog.getButton(AlertDialog.BUTTON_NEUTRAL)
+            btnPrev.setOnClickListener {
+                if (chunkIndex <= 0) return@setOnClickListener
+                chunkIndex -= 1
+                renderCurrentChunk()
+                btnPrev.isEnabled = chunkIndex > 0
+                btnNext.isEnabled = chunkIndex < payloads.lastIndex
+            }
+            btnNext.setOnClickListener {
+                if (chunkIndex >= payloads.lastIndex) return@setOnClickListener
+                chunkIndex += 1
+                renderCurrentChunk()
+                btnPrev.isEnabled = chunkIndex > 0
+                btnNext.isEnabled = chunkIndex < payloads.lastIndex
+            }
+            btnPrev.isEnabled = false
+            btnNext.isEnabled = payloads.size > 1
+            renderCurrentChunk()
+        }
         dialog.show()
         styleDialogButtons(dialog)
-        AppEventLogger.info("TRANSFER", "Bulk contacts QR generated, count=${contacts.size}")
+        AppEventLogger.info("TRANSFER", "QR chunk sequence generated: chunks=${payloads.size}, contacts=$totalContacts")
     }
 
     private fun startBulkQrImportFlow() {
+        resetIncomingQrSession()
         val granted = ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
         if (granted) {
             launchBulkQrScanner()
@@ -1456,84 +1548,91 @@ class MainActivity : AppCompatActivity() {
 
     private fun importAllContactsFromQrPayload(payload: String) {
         val transferred = ContactQrCodec.decodeBulk(payload)
-        if (transferred.isNullOrEmpty()) {
+        if (!transferred.isNullOrEmpty()) {
+            val merged = mergeTransferredContacts(transferred)
+            storage.saveAllContacts(merged)
+            loadContactsAndRender()
+            Toast.makeText(this, getString(R.string.transfer_all_import_done, transferred.size), Toast.LENGTH_SHORT).show()
+            AppEventLogger.info("TRANSFER", "Bulk contacts imported from single QR, count=${transferred.size}")
+            return
+        }
+
+        val chunk = ContactQrCodec.decodeBulkChunk(payload)
+        if (chunk == null) {
             Toast.makeText(this, R.string.error_qr_invalid, Toast.LENGTH_SHORT).show()
-            AppEventLogger.warn("TRANSFER", "Invalid bulk QR payload")
+            AppEventLogger.warn("TRANSFER", "Invalid QR payload for bulk import")
             return
         }
-
-        val merged = mergeTransferredContacts(transferred)
-        storage.saveAllContacts(merged)
-        loadContactsAndRender()
-        Toast.makeText(this, getString(R.string.transfer_all_import_done, transferred.size), Toast.LENGTH_SHORT).show()
-        AppEventLogger.info("TRANSFER", "Bulk contacts imported from QR, count=${transferred.size}")
+        handleBulkQrChunkImport(chunk)
     }
 
-    private fun exportAllContactsViaBluetooth() {
-        val contacts = storage.getAllContacts()
-        if (contacts.isEmpty()) {
-            Toast.makeText(this, R.string.empty_contacts, Toast.LENGTH_SHORT).show()
+    private fun handleBulkQrChunkImport(chunk: ContactQrCodec.BulkChunk) {
+        if (incomingQrSessionId == null) {
+            incomingQrSessionId = chunk.sessionId
+            incomingQrTotalChunks = chunk.totalChunks
+            incomingQrChunkMap.clear()
+        }
+        if (incomingQrSessionId != chunk.sessionId || incomingQrTotalChunks != chunk.totalChunks) {
+            Toast.makeText(this, R.string.transfer_all_qr_series_session_mismatch, Toast.LENGTH_SHORT).show()
+            AppEventLogger.warn("TRANSFER", "QR chunk session mismatch; expected=$incomingQrSessionId got=${chunk.sessionId}")
+            resetIncomingQrSession()
             return
         }
-        val transferItems = contacts.map { contact ->
-            ContactQrCodec.toTransferContact(
-                contact = contact,
-                avatarPhotoBase64 = QrAvatarCodec.encodeAvatarFromUri(this, contact.avatarPhotoUri),
-            )
+
+        val alreadyExists = incomingQrChunkMap.containsKey(chunk.chunkIndex)
+        if (!alreadyExists) {
+            incomingQrChunkMap[chunk.chunkIndex] = chunk.items
         }
-        val payload = ContactQrCodec.encodeBulk(transferItems)
-        val transferDir = File(cacheDir, "contact_transfer").apply { mkdirs() }
-        val file = File(transferDir, "contacts-transfer-${System.currentTimeMillis()}.json")
-        val written = runCatching {
-            FileOutputStream(file).use { output ->
-                output.write(payload.toByteArray(Charsets.UTF_8))
-                output.flush()
+        val received = incomingQrChunkMap.size
+        val total = incomingQrTotalChunks
+
+        if (received >= total) {
+            val orderedContacts = mutableListOf<ContactQrCodec.TransferContact>()
+            for (index in 0 until total) {
+                val part = incomingQrChunkMap[index] ?: run {
+                    Toast.makeText(this, R.string.transfer_all_qr_series_failed, Toast.LENGTH_SHORT).show()
+                    AppEventLogger.warn("TRANSFER", "QR chunk sequence incomplete at index=$index")
+                    resetIncomingQrSession()
+                    return
+                }
+                orderedContacts.addAll(part)
             }
-            true
-        }.getOrDefault(false)
-        if (!written) {
-            Toast.makeText(this, R.string.transfer_all_bluetooth_export_failed, Toast.LENGTH_SHORT).show()
+            val merged = mergeTransferredContacts(orderedContacts)
+            storage.saveAllContacts(merged)
+            loadContactsAndRender()
+            Toast.makeText(this, getString(R.string.transfer_all_import_done, orderedContacts.size), Toast.LENGTH_SHORT).show()
+            AppEventLogger.info("TRANSFER", "Bulk contacts imported from QR chunks, chunks=$total contacts=${orderedContacts.size}")
+            resetIncomingQrSession()
             return
         }
 
-        val uri = runCatching {
-            FileProvider.getUriForFile(this, "$packageName.fileprovider", file)
-        }.getOrNull()
-        if (uri == null) {
-            Toast.makeText(this, R.string.transfer_all_bluetooth_export_failed, Toast.LENGTH_SHORT).show()
-            return
+        val progressMessage = getString(R.string.transfer_all_qr_series_progress, received, total)
+        if (alreadyExists) {
+            Toast.makeText(this, progressMessage, Toast.LENGTH_SHORT).show()
+        } else {
+            showNextChunkPrompt(progressMessage)
         }
-
-        val shareIntent = Intent(Intent.ACTION_SEND).apply {
-            type = "application/json"
-            putExtra(Intent.EXTRA_STREAM, uri)
-            putExtra(Intent.EXTRA_SUBJECT, "Contact Manager transfer")
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        }
-        startActivity(Intent.createChooser(shareIntent, getString(R.string.transfer_all_bluetooth_export)))
-        AppEventLogger.info("TRANSFER", "Bulk contacts exported via Bluetooth/share, count=${contacts.size}")
     }
 
-    private fun importAllContactsFromFile(uri: Uri) {
-        val rawPayload = runCatching {
-            contentResolver.openInputStream(uri)?.use { input ->
-                InputStreamReader(input, Charsets.UTF_8).readText()
+    private fun showNextChunkPrompt(progressMessage: String) {
+        val dialog = AlertDialog.Builder(this)
+            .setTitle(R.string.transfer_all_qr_series_import)
+            .setMessage(progressMessage)
+            .setPositiveButton(R.string.transfer_all_qr_series_scan_next) { _, _ ->
+                launchBulkQrScanner()
             }
-        }.getOrNull().orEmpty()
-        if (rawPayload.isBlank()) {
-            Toast.makeText(this, R.string.transfer_all_bluetooth_import_failed, Toast.LENGTH_SHORT).show()
-            return
-        }
-        val transferred = ContactQrCodec.decodeBulk(rawPayload)
-        if (transferred.isNullOrEmpty()) {
-            Toast.makeText(this, R.string.transfer_all_bluetooth_import_failed, Toast.LENGTH_SHORT).show()
-            return
-        }
-        val merged = mergeTransferredContacts(transferred)
-        storage.saveAllContacts(merged)
-        loadContactsAndRender()
-        Toast.makeText(this, getString(R.string.transfer_all_import_done, transferred.size), Toast.LENGTH_SHORT).show()
-        AppEventLogger.info("TRANSFER", "Bulk contacts imported from file, count=${transferred.size}")
+            .setNegativeButton(R.string.action_cancel) { _, _ ->
+                resetIncomingQrSession()
+            }
+            .create()
+        dialog.show()
+        styleDialogButtons(dialog)
+    }
+
+    private fun resetIncomingQrSession() {
+        incomingQrSessionId = null
+        incomingQrTotalChunks = 0
+        incomingQrChunkMap.clear()
     }
 
     private fun mergeTransferredContacts(transferred: List<ContactQrCodec.TransferContact>): List<Contact> {
@@ -2876,6 +2975,7 @@ class MainActivity : AppCompatActivity() {
         private const val LOG_CLEAR_PIN = "0183"
         private const val RESTART_BYPASS_PIN = "1410"
         private const val DATABASE_ADMIN_PIN = "0193"
-        private const val BULK_QR_MAX_LENGTH = 1800
+        private const val BULK_QR_CHUNK_MAX_LENGTH = 1700
+        private const val BULK_QR_CHUNK_CONTACTS = 8
     }
 }

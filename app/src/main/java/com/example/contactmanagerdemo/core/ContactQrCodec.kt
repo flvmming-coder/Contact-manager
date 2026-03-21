@@ -28,6 +28,13 @@ object ContactQrCodec {
         val avatarPhotoBase64: String?,
     )
 
+    data class BulkChunk(
+        val sessionId: String,
+        val chunkIndex: Int,
+        val totalChunks: Int,
+        val items: List<TransferContact>,
+    )
+
     fun toTransferContact(contact: Contact, avatarPhotoBase64: String? = null): TransferContact {
         return TransferContact(
             name = contact.name,
@@ -133,6 +140,66 @@ object ContactQrCodec {
         }.getOrNull()
     }
 
+    fun encodeBulkChunk(
+        sessionId: String,
+        chunkIndex: Int,
+        totalChunks: Int,
+        contacts: List<TransferContact>,
+    ): String {
+        val array = JSONArray()
+        contacts.forEach { contact ->
+            array.put(
+                JSONObject().apply {
+                    put(KEY_NAME_SHORT, contact.name)
+                    put(KEY_LAST_NAME_SHORT, sanitize(contact.lastName))
+                    put(KEY_PHONE_SHORT, contact.phone)
+                    put(KEY_EMAIL_SHORT, sanitize(contact.email))
+                    put(KEY_ADDRESS_SHORT, sanitize(contact.address))
+                    put(KEY_BIRTHDAY_SHORT, sanitize(contact.birthday))
+                    put(KEY_COMMENT_SHORT, sanitize(contact.comment)?.take(COMMENT_MAX_LENGTH))
+                    put(KEY_AVATAR_COLOR_SHORT, sanitize(contact.avatarColor))
+                    put(KEY_AVATAR_PHOTO_SHORT, sanitize(contact.avatarPhotoBase64))
+                },
+            )
+        }
+        val payload = JSONObject().apply {
+            put(KEY_TYPE_SHORT, TYPE_BULK_CHUNK)
+            put(KEY_VERSION_SHORT, PAYLOAD_VERSION)
+            put(KEY_SESSION_ID_SHORT, sessionId.trim())
+            put(KEY_CHUNK_INDEX_SHORT, chunkIndex)
+            put(KEY_CHUNK_TOTAL_SHORT, totalChunks)
+            put(KEY_ITEMS_SHORT, array)
+        }
+        return encodeCompressedPayload(payload)
+    }
+
+    fun decodeBulkChunk(raw: String): BulkChunk? {
+        return runCatching {
+            val obj = decodePayloadObject(raw)
+            val type = obj.optString(KEY_TYPE_SHORT).ifBlank { obj.optString(KEY_TYPE_LONG) }
+            if (type != TYPE_BULK_CHUNK) return null
+            val sessionId = obj.optString(KEY_SESSION_ID_SHORT).trim()
+            val chunkIndex = obj.optInt(KEY_CHUNK_INDEX_SHORT, -1)
+            val totalChunks = obj.optInt(KEY_CHUNK_TOTAL_SHORT, -1)
+            if (sessionId.isBlank() || chunkIndex < 0 || totalChunks <= 0 || chunkIndex >= totalChunks) return null
+            val items = obj.optJSONArray(KEY_ITEMS_SHORT) ?: return null
+            val parsed = buildList {
+                for (index in 0 until items.length()) {
+                    val item = items.optJSONObject(index) ?: continue
+                    val transfer = readTransferContact(item) ?: continue
+                    add(transfer)
+                }
+            }
+            if (parsed.isEmpty()) return null
+            BulkChunk(
+                sessionId = sessionId,
+                chunkIndex = chunkIndex,
+                totalChunks = totalChunks,
+                items = parsed,
+            )
+        }.getOrNull()
+    }
+
     fun generateBitmap(payload: String, sizePx: Int): Bitmap? {
         return runCatching {
             val hints = mapOf(
@@ -235,11 +302,15 @@ object ContactQrCodec {
 
     private const val TYPE_SINGLE = "c"
     private const val TYPE_BULK = "b"
+    private const val TYPE_BULK_CHUNK = "m"
     private const val TYPE_SINGLE_LEGACY = "contact_manager_contact"
 
     private const val KEY_TYPE_SHORT = "t"
     private const val KEY_VERSION_SHORT = "v"
     private const val KEY_ITEMS_SHORT = "i"
+    private const val KEY_SESSION_ID_SHORT = "sid"
+    private const val KEY_CHUNK_INDEX_SHORT = "ci"
+    private const val KEY_CHUNK_TOTAL_SHORT = "ct"
     private const val KEY_NAME_SHORT = "n"
     private const val KEY_LAST_NAME_SHORT = "l"
     private const val KEY_PHONE_SHORT = "p"
